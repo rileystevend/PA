@@ -15,22 +15,25 @@ def tmp_cache(tmp_path, monkeypatch):
     monkeypatch.setattr(news, "CACHE_DIR", tmp_path)
 
 
-SAMPLE_FEED_XML = """<?xml version="1.0"?>
+def _make_feed_xml(prefix: str) -> str:
+    return f"""<?xml version="1.0"?>
 <rss version="2.0">
   <channel>
-    <title>Test Feed</title>
+    <title>{prefix} Feed</title>
     <item>
-      <title>Article One</title>
-      <link>https://example.com/1</link>
+      <title>{prefix} Article One</title>
+      <link>https://{prefix}.example.com/1</link>
       <pubDate>Thu, 27 Mar 2026 12:00:00 +0000</pubDate>
     </item>
     <item>
-      <title>Article Two</title>
-      <link>https://example.com/2</link>
+      <title>{prefix} Article Two</title>
+      <link>https://{prefix}.example.com/2</link>
       <pubDate>Thu, 27 Mar 2026 11:00:00 +0000</pubDate>
     </item>
   </channel>
 </rss>"""
+
+SAMPLE_FEED_XML = _make_feed_xml("generic")
 
 
 def _make_http_resp(text):
@@ -42,18 +45,25 @@ def _make_http_resp(text):
 
 class TestGetHeadlines:
     def test_returns_articles_from_all_sources(self, monkeypatch, tmp_path):
-        mock_resp = _make_http_resp(SAMPLE_FEED_XML)
-        mock_session = MagicMock()
-        mock_session.get.return_value = mock_resp
+        # Each source gets unique URLs to prevent deduplication swallowing results
+        def fake_httpx_get(url, **kwargs):
+            if "bloomberg" in url:
+                return _make_http_resp(_make_feed_xml("bloomberg"))
+            if "techcrunch" in url:
+                return _make_http_resp(_make_feed_xml("techcrunch"))
+            return _make_http_resp(_make_feed_xml("statesman"))
 
-        with patch("integrations.news.httpx.get", return_value=mock_resp):
+        mock_session = MagicMock()
+        mock_session.get.return_value = _make_http_resp(_make_feed_xml("statesman"))
+
+        with patch("integrations.news.httpx.get", side_effect=fake_httpx_get):
             with patch("integrations.news.statesman_auth.get_session", return_value=mock_session):
                 results = news.get_headlines()
 
-        # 2 articles * 3 sources (statesman, bloomberg, techcrunch) but deduplicated
-        assert len(results) > 0
         sources = {r.get("source") for r in results if "source" in r}
-        assert "bloomberg" in sources or "techcrunch" in sources
+        assert "bloomberg" in sources
+        assert "techcrunch" in sources
+        assert "statesman" in sources
 
     def test_returns_partial_when_one_source_fails(self, monkeypatch):
         good_resp = _make_http_resp(SAMPLE_FEED_XML)

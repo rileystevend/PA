@@ -30,17 +30,18 @@ def save(provider: str, token: dict) -> None:
 
 def is_expired(token: dict) -> bool:
     """Return True if the token is expired or has no expiry info."""
-    expiry = token.get("expiry") or token.get("expires_in")
-    if not expiry:
-        return True
-    # Google stores expiry as ISO string; Microsoft stores expires_in as seconds from issue
-    if isinstance(expiry, str):
-        exp_dt = datetime.fromisoformat(expiry.replace("Z", "+00:00"))
+    # Google: ISO string in "expiry"
+    expiry_str = token.get("expiry")
+    if expiry_str and isinstance(expiry_str, str):
+        exp_dt = datetime.fromisoformat(expiry_str.replace("Z", "+00:00"))
         return datetime.now(timezone.utc) >= exp_dt
-    # Microsoft: check expires_on (unix timestamp) if present
+
+    # Microsoft: unix timestamp in "expires_on"
     expires_on = token.get("expires_on")
-    if expires_on:
+    if expires_on is not None:
         return datetime.now(timezone.utc).timestamp() >= expires_on
+
+    # No expiry info — assume expired
     return True
 
 

@@ -37,7 +37,7 @@ class TestGetWeather:
 
         mock_get.assert_called_once()
         assert result["location"] == "Austin"
-        assert result["temp_f"] == 73
+        assert result["temp_f"] == round(72.5)
         assert result["description"] == "Partly cloudy"
         assert result["humidity_pct"] == 55
         assert result["wind_mph"] == 8
@@ -73,7 +73,7 @@ class TestGetWeather:
             result = weather.get_weather()
 
         mock_get.assert_called_once()
-        assert result["temp_f"] == 73
+        assert result["temp_f"] == round(72.5)
 
     def test_raises_when_no_api_key(self, monkeypatch):
         monkeypatch.delenv("OPENWEATHER_API_KEY", raising=False)

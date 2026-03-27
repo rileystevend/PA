@@ -38,7 +38,7 @@ def _collect_stream(coro):
         async for chunk in coro:
             chunks.append(chunk)
         return chunks
-    return asyncio.get_event_loop().run_until_complete(_run())
+    return asyncio.run(_run())
 
 
 class TestBriefingFlow:

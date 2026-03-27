@@ -76,12 +76,12 @@ class TestGetValid:
 
     def test_refreshes_when_expired(self, tmp_path):
         past = (datetime.now(timezone.utc) - timedelta(hours=1)).isoformat()
-        _write_token(tmp_path, "google", {"token": "old", "expiry": past,
-                                           "refresh_token": "rt"})
+        old_token = {"token": "old", "expiry": past, "refresh_token": "rt"}
+        _write_token(tmp_path, "google", old_token)
         fresh = {"token": "new", "expiry": (datetime.now(timezone.utc) + timedelta(hours=1)).isoformat()}
         with patch.object(token_store, "refresh", return_value=fresh) as mock_refresh:
             result = token_store.get_valid("google")
-        mock_refresh.assert_called_once_with("google", pytest.approx({}))
+        mock_refresh.assert_called_once_with("google", old_token)
         assert result["token"] == "new"
 
     def test_raises_unknown_provider(self):
