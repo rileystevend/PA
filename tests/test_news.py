@@ -51,7 +51,8 @@ class TestGetHeadlines:
                 return _make_http_resp(_make_feed_xml("bloomberg"))
             if "techcrunch" in url:
                 return _make_http_resp(_make_feed_xml("techcrunch"))
-            return _make_http_resp(_make_feed_xml("statesman"))
+            # austin google news feed — distinct from statesman
+            return _make_http_resp(_make_feed_xml("austin"))
 
         mock_session = MagicMock()
         mock_session.get.return_value = _make_http_resp(_make_feed_xml("statesman"))

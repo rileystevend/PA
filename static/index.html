@@ -14,6 +14,7 @@
       height: 100vh;
       display: flex;
       flex-direction: column;
+      overflow: hidden;
     }
 
     header {
@@ -22,6 +23,7 @@
       display: flex;
       align-items: center;
       gap: 12px;
+      flex-shrink: 0;
     }
 
     header h1 {
@@ -34,6 +36,137 @@
       font-size: 12px;
       color: #666;
       margin-left: auto;
+    }
+
+    .icon-btn {
+      background: none;
+      border: none;
+      color: #444;
+      cursor: pointer;
+      padding: 4px 8px;
+      border-radius: 6px;
+      font-size: 16px;
+      transition: color 0.15s, background 0.15s;
+      line-height: 1;
+    }
+    .icon-btn:hover { color: #888; background: #1a1a1a; }
+
+    /* ── Layout ─────────────────────────────────────────── */
+    #main-layout {
+      flex: 1;
+      display: flex;
+      overflow: hidden;
+    }
+
+    /* ── Sidebar ─────────────────────────────────────────── */
+    #sidebar {
+      width: 220px;
+      min-width: 220px;
+      border-right: 1px solid #1e1e1e;
+      display: flex;
+      flex-direction: column;
+      background: #0a0a0a;
+      overflow-y: auto;
+      transition: width 0.2s ease, min-width 0.2s ease, opacity 0.15s;
+    }
+    #sidebar.collapsed {
+      width: 0;
+      min-width: 0;
+      opacity: 0;
+      overflow: hidden;
+      pointer-events: none;
+      border-right: none;
+    }
+
+    /* On narrow viewports, sidebar defaults to collapsed and overlays the chat */
+    @media (max-width: 600px) {
+      #sidebar {
+        position: absolute;
+        top: 57px; /* header height */
+        left: 0;
+        bottom: 0;
+        z-index: 50;
+        box-shadow: 4px 0 16px rgba(0,0,0,0.6);
+      }
+      #sidebar:not(.collapsed) {
+        width: 220px;
+        min-width: 220px;
+      }
+    }
+
+    .sidebar-section {
+      padding: 16px 12px 8px;
+    }
+
+    .sidebar-label {
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.8px;
+      text-transform: uppercase;
+      color: #3a3a3a;
+      padding: 0 4px;
+      margin-bottom: 6px;
+    }
+
+    .quick-action {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      width: 100%;
+      background: none;
+      border: none;
+      border-radius: 8px;
+      padding: 9px 8px;
+      cursor: pointer;
+      text-align: left;
+      color: #888;
+      transition: background 0.12s, color 0.12s;
+      margin-bottom: 2px;
+    }
+    .quick-action:hover {
+      background: #141414;
+      color: #ccc;
+    }
+    .quick-action:active { background: #1a1a1a; }
+
+    .qa-icon {
+      font-size: 15px;
+      line-height: 1.3;
+      flex-shrink: 0;
+    }
+
+    .qa-text {
+      display: flex;
+      flex-direction: column;
+      gap: 1px;
+    }
+    .qa-title {
+      font-size: 12px;
+      font-weight: 600;
+      line-height: 1.3;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .qa-desc {
+      font-size: 10px;
+      color: #444;
+      line-height: 1.3;
+    }
+    .quick-action:hover .qa-desc { color: #666; }
+
+    .sidebar-divider {
+      border: none;
+      border-top: 1px solid #1a1a1a;
+      margin: 6px 12px;
+    }
+
+    /* ── Chat area ───────────────────────────────────────── */
+    #chat-area {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
     }
 
     #messages {
@@ -64,6 +197,7 @@
 
     .message.assistant {
       align-self: flex-start;
+      position: relative;
     }
 
     .message.assistant .content {
@@ -72,6 +206,25 @@
       border-radius: 4px 12px 12px 12px;
       padding: 16px 20px;
     }
+
+    /* Copy button */
+    .copy-btn {
+      position: absolute;
+      top: 8px;
+      right: 8px;
+      background: #1a1a1a;
+      border: 1px solid #2a2a2a;
+      border-radius: 6px;
+      color: #555;
+      cursor: pointer;
+      font-size: 13px;
+      padding: 4px 8px;
+      opacity: 0;
+      transition: opacity 0.15s, color 0.15s;
+    }
+    .copy-btn:hover { color: #aaa; }
+    .message.assistant:hover .copy-btn { opacity: 1; }
+    @media (hover: none) { .copy-btn { opacity: 1; } }
 
     /* Markdown rendering */
     .message.assistant h1, .message.assistant h2, .message.assistant h3 {
@@ -96,6 +249,35 @@
       border-top: 1px solid #222;
       margin: 12px 0;
     }
+    .message.assistant a {
+      color: #7090d0;
+      text-decoration: none;
+    }
+    .message.assistant a:hover { text-decoration: underline; }
+    .message.assistant a:focus { outline: 2px solid #7090d0; border-radius: 2px; }
+
+    /* Table styling */
+    .message.assistant .table-wrap {
+      overflow-x: auto;
+      margin: 8px 0;
+    }
+    .message.assistant table {
+      border-collapse: collapse;
+      width: 100%;
+      font-size: 13px;
+    }
+    .message.assistant th, .message.assistant td {
+      border: 1px solid #2a2a2a;
+      padding: 6px 12px;
+      text-align: left;
+    }
+    .message.assistant th {
+      background: #1a1a1a;
+      color: #a0a0c0;
+      font-weight: 600;
+    }
+    .message.assistant tr:nth-child(even) td { background: #141414; }
+    .message.assistant tr:nth-child(odd) td  { background: #111111; }
 
     .cursor {
       display: inline-block;
@@ -111,6 +293,7 @@
     #input-area {
       padding: 16px 24px;
       border-top: 1px solid #222;
+      flex-shrink: 0;
     }
 
     #input-wrap {
@@ -198,42 +381,250 @@
       border-color: #2a2a4a;
       color: #a0a0c0;
     }
+
+    /* Undo toast */
+    #undo-toast {
+      position: fixed;
+      bottom: 90px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: #1e1e1e;
+      border: 1px solid #333;
+      border-radius: 8px;
+      padding: 10px 16px;
+      font-size: 13px;
+      color: #ccc;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.2s;
+      z-index: 100;
+    }
+    #undo-toast.visible { opacity: 1; pointer-events: auto; }
+    #undo-toast button {
+      background: none;
+      border: none;
+      color: #7090d0;
+      cursor: pointer;
+      font-size: 13px;
+      padding: 0;
+      font-weight: 600;
+    }
+    #undo-toast button:hover { color: #90b0f0; }
   </style>
 </head>
 <body>
 
 <header>
+  <button class="icon-btn" id="sidebar-toggle" onclick="toggleSidebar()" aria-label="Toggle sidebar" title="Toggle sidebar">☰</button>
   <h1>PA</h1>
-  <span class="status" id="status">Personal Assistant</span>
+  <span class="status" id="status" aria-live="polite">Personal Assistant</span>
+  <button class="icon-btn" id="clear-btn" onclick="clearConversation()" aria-label="Clear conversation" title="Clear conversation">⊘</button>
 </header>
 
-<div id="messages">
-  <div class="empty-state" id="empty-state">
-    <h2>Good morning.</h2>
-    <p>What can I help you with?</p>
-    <div class="suggestions">
-      <div class="suggestion" onclick="sendSuggestion('Morning briefing')">Morning briefing</div>
-      <div class="suggestion" onclick="sendSuggestion(&quot;What's on my calendar today?&quot;)">Today's calendar</div>
-      <div class="suggestion" onclick="sendSuggestion('Any important emails?')">Important emails</div>
-      <div class="suggestion" onclick="sendSuggestion('What\'s the weather?')">Weather</div>
-      <div class="suggestion" onclick="sendSuggestion('What\'s in the news?')">News headlines</div>
+<div id="main-layout">
+
+  <!-- ── Sidebar ── -->
+  <nav id="sidebar" aria-label="Quick actions">
+
+    <div class="sidebar-section">
+      <div class="sidebar-label">Daily</div>
+
+      <button class="quick-action" onclick="runAction('morning-briefing')">
+        <span class="qa-icon">☀️</span>
+        <span class="qa-text">
+          <span class="qa-title">Morning briefing</span>
+          <span class="qa-desc">Weather, email, news, calendar</span>
+        </span>
+      </button>
+
+      <button class="quick-action" onclick="runAction('week-ahead')">
+        <span class="qa-icon">📆</span>
+        <span class="qa-text">
+          <span class="qa-title">Week ahead</span>
+          <span class="qa-desc">5-day calendar preview</span>
+        </span>
+      </button>
+    </div>
+
+    <hr class="sidebar-divider">
+
+    <div class="sidebar-section">
+      <div class="sidebar-label">Email</div>
+
+      <button class="quick-action" onclick="runAction('reply-needed')">
+        <span class="qa-icon">📧</span>
+        <span class="qa-text">
+          <span class="qa-title">Reply needed</span>
+          <span class="qa-desc">Threads awaiting response</span>
+        </span>
+      </button>
+
+      <button class="quick-action" onclick="runAction('follow-ups')">
+        <span class="qa-icon">📤</span>
+        <span class="qa-text">
+          <span class="qa-title">Follow-ups</span>
+          <span class="qa-desc">Sent with no reply 3+ days</span>
+        </span>
+      </button>
+    </div>
+
+    <hr class="sidebar-divider">
+
+    <div class="sidebar-section">
+      <div class="sidebar-label">Calendar</div>
+
+      <button class="quick-action" onclick="runAction('plan-ahead')">
+        <span class="qa-icon">🗺️</span>
+        <span class="qa-text">
+          <span class="qa-title">Plan ahead</span>
+          <span class="qa-desc">Events needing prep in 2 weeks</span>
+        </span>
+      </button>
+
+      <button class="quick-action" onclick="runAction('conflicts')">
+        <span class="qa-icon">⚠️</span>
+        <span class="qa-text">
+          <span class="qa-title">Conflicts & gaps</span>
+          <span class="qa-desc">Overlaps or back-to-back issues</span>
+        </span>
+      </button>
+    </div>
+
+    <hr class="sidebar-divider">
+
+    <div class="sidebar-section">
+      <div class="sidebar-label">News</div>
+
+      <button class="quick-action" onclick="runAction('tech-news')">
+        <span class="qa-icon">🤖</span>
+        <span class="qa-text">
+          <span class="qa-title">AI & Cloud news</span>
+          <span class="qa-desc">Latest in tech & infrastructure</span>
+        </span>
+      </button>
+
+      <button class="quick-action" onclick="runAction('finance-news')">
+        <span class="qa-icon">📊</span>
+        <span class="qa-text">
+          <span class="qa-title">Finance news</span>
+          <span class="qa-desc">Markets & economic updates</span>
+        </span>
+      </button>
+
+      <button class="quick-action" onclick="runAction('local-news')">
+        <span class="qa-icon">📍</span>
+        <span class="qa-text">
+          <span class="qa-title">Austin news</span>
+          <span class="qa-desc">Local headlines & updates</span>
+        </span>
+      </button>
+    </div>
+
+  </nav>
+
+  <!-- ── Chat ── -->
+  <div id="chat-area">
+    <div id="messages">
+      <div class="empty-state" id="empty-state">
+        <h2 id="greeting-text">Good morning.</h2>
+        <p>What can I help you with?</p>
+        <div class="suggestions">
+          <div class="suggestion" onclick="sendSuggestion('Morning briefing')">Morning briefing</div>
+          <div class="suggestion" onclick="sendSuggestion(&quot;What's on my calendar today?&quot;)">Today's calendar</div>
+          <div class="suggestion" onclick="sendSuggestion('Any important emails?')">Important emails</div>
+          <div class="suggestion" onclick="sendSuggestion(&quot;What's the weather?&quot;)">Weather</div>
+          <div class="suggestion" onclick="sendSuggestion(&quot;What's in the news?&quot;)">News headlines</div>
+        </div>
+      </div>
+    </div>
+
+    <div id="input-area">
+      <div id="input-wrap">
+        <textarea id="input" placeholder="Ask anything..." rows="1"></textarea>
+        <button id="send-btn" onclick="send()">&#9650;</button>
+      </div>
     </div>
   </div>
-</div>
 
-<div id="input-area">
-  <div id="input-wrap">
-    <textarea id="input" placeholder="Ask anything..." rows="1"></textarea>
-    <button id="send-btn" onclick="send()">&#9650;</button>
-  </div>
+</div><!-- /main-layout -->
+
+<div id="undo-toast">
+  Conversation cleared.
+  <button onclick="undoClear()">Undo</button>
 </div>
 
 <script>
   const input = document.getElementById('input');
   const messages = document.getElementById('messages');
-  const emptyState = document.getElementById('empty-state');
   const sendBtn = document.getElementById('send-btn');
+  const statusEl = document.getElementById('status');
+  const undoToast = document.getElementById('undo-toast');
+  const sidebar = document.getElementById('sidebar');
+
   let streaming = false;
+  let undoSnapshot = null;
+  let undoTimer = null;
+  let sidebarOpen = true;
+
+  const STORAGE_KEY = 'pa_conversation';
+  const SIDEBAR_KEY = 'pa_sidebar_open';
+  const MAX_MESSAGES = 50;
+
+  // --- Quick action prompts ---
+  const ACTIONS = {
+    'morning-briefing': 'Morning briefing',
+    'week-ahead': "Give me a preview of my week ahead — summarize my calendar for the next 5 days, highlight any important events, deadlines, or things I should know about.",
+    'reply-needed': "Scan my recent emails and identify conversations that need a response from me. Skip newsletters, promotions, automated notifications, and anything that doesn't require a reply. For each thread that needs attention, tell me who it's from, what it's about, and what action I should take.",
+    'follow-ups': "Check my sent emails from the last 7 days and identify any messages where I haven't received a reply and might need to follow up. Tell me who the email was to, what it was about, and how many days ago I sent it.",
+    'plan-ahead': "Look at my calendar for the next 2 weeks and flag any events that might need advance planning — trips, medical appointments, big meetings, deadlines, or multi-step preparations. For each one, tell me what it is, when it is, and what I should be doing now to prepare.",
+    'conflicts': "Review my calendar for the next week and flag any scheduling issues — overlapping events, back-to-back meetings with no buffer, or events that seem to conflict with each other. Let me know what the conflicts are and suggest how I might resolve them.",
+    'tech-news': "Give me a quick recap of the latest news in AI and cloud technology. Focus on significant product launches, major research breakthroughs, or important industry moves from the past day or two.",
+    'finance-news': "Give me a quick financial news recap — what's happening in the markets, any notable economic data, or major corporate news from the past day or two.",
+    'local-news': "What's going on in Austin? Give me a quick summary of the top local headlines from the Statesman or other Austin news sources.",
+  };
+
+  // --- Sidebar ---
+  function initSidebar() {
+    const saved = localStorage.getItem(SIDEBAR_KEY);
+    const isMobile = window.innerWidth <= 600;
+    sidebarOpen = saved === null ? !isMobile : saved === 'true';
+    applySidebarState();
+  }
+
+  function toggleSidebar() {
+    sidebarOpen = !sidebarOpen;
+    localStorage.setItem(SIDEBAR_KEY, sidebarOpen);
+    applySidebarState();
+  }
+
+  function applySidebarState() {
+    if (sidebarOpen) {
+      sidebar.classList.remove('collapsed');
+    } else {
+      sidebar.classList.add('collapsed');
+    }
+  }
+
+  function runAction(key) {
+    const prompt = ACTIONS[key];
+    if (!prompt) return;
+    sendSuggestion(prompt);
+  }
+
+  initSidebar();
+
+  // --- Greeting ---
+  function greeting() {
+    const h = new Date().getHours();
+    if (h >= 5 && h < 12) return 'Good morning.';
+    if (h >= 12 && h < 17) return 'Good afternoon.';
+    if (h >= 17 && h < 21) return 'Good evening.';
+    return 'Working late?';
+  }
+  document.getElementById('greeting-text').textContent = greeting();
 
   // Check URL for OAuth success
   const params = new URLSearchParams(window.location.search);
@@ -257,6 +648,79 @@
     }
   });
 
+  // --- Conversation persistence ---
+  function saveConversation() {
+    const msgs = [...messages.querySelectorAll('.message')].map(el => ({
+      role: el.classList.contains('user') ? 'user' : 'assistant',
+      text: el.classList.contains('user') ? el.textContent : el.querySelector('.content').innerHTML,
+      isHTML: el.classList.contains('assistant'),
+    }));
+    const capped = msgs.slice(-MAX_MESSAGES);
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(capped));
+    } catch (e) {
+      // QuotaExceededError — degrade silently
+    }
+  }
+
+  function loadConversation() {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (!raw) return;
+      const msgs = JSON.parse(raw);
+      if (!Array.isArray(msgs) || msgs.length === 0) return;
+
+      hideEmptyState();
+      for (const m of msgs) {
+        const el = document.createElement('div');
+        el.className = `message ${m.role}`;
+        if (m.role === 'assistant') {
+          el.innerHTML = `
+            <div class="content">${m.text}</div>
+            <button class="copy-btn" aria-label="Copy response" onclick="copyMessage(this)">Copy</button>
+          `;
+        } else {
+          el.textContent = m.text;
+        }
+        messages.appendChild(el);
+      }
+      messages.scrollTop = messages.scrollHeight;
+    } catch (e) {
+      // Corrupted JSON — show empty state (already shown by default)
+    }
+  }
+
+  function clearConversation() {
+    undoSnapshot = localStorage.getItem(STORAGE_KEY);
+
+    localStorage.removeItem(STORAGE_KEY);
+    [...messages.querySelectorAll('.message, [style*="text-align"]')].forEach(el => el.remove());
+    showEmptyState();
+
+    clearTimeout(undoTimer);
+    undoToast.classList.add('visible');
+    undoTimer = setTimeout(() => {
+      undoToast.classList.remove('visible');
+      undoSnapshot = null;
+    }, 4000);
+  }
+
+  function undoClear() {
+    clearTimeout(undoTimer);
+    undoToast.classList.remove('visible');
+    if (!undoSnapshot) return;
+    try {
+      localStorage.setItem(STORAGE_KEY, undoSnapshot);
+    } catch (e) {}
+    undoSnapshot = null;
+    hideEmptyState();
+    [...messages.querySelectorAll('.message')].forEach(el => el.remove());
+    loadConversation();
+  }
+
+  loadConversation();
+
+  // --- Sending ---
   function sendSuggestion(text) {
     input.value = text;
     send();
@@ -277,6 +741,7 @@
   async function streamMessage(message) {
     streaming = true;
     sendBtn.disabled = true;
+    statusEl.textContent = 'Thinking...';
 
     const msgEl = addMessage('assistant', '');
     const contentEl = msgEl.querySelector('.content');
@@ -285,12 +750,23 @@
     contentEl.appendChild(cursor);
 
     let fullText = '';
+    let gotFirstToken = false;
 
     try {
+      // Build conversation history from displayed messages (excluding the two just added:
+      // the new user message and the empty assistant placeholder).
+      const allMsgs = [...messages.querySelectorAll('.message')];
+      const history = allMsgs.slice(0, -2).slice(-20).map(el => ({
+        role: el.classList.contains('user') ? 'user' : 'assistant',
+        content: el.classList.contains('user')
+          ? el.textContent.trim()
+          : (el.querySelector('.content')?.textContent || '').trim(),
+      })).filter(m => m.content);
+
       const resp = await fetch('/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message }),
+        body: JSON.stringify({ message, history }),
       });
 
       if (!resp.ok) {
@@ -317,6 +793,10 @@
           try {
             const parsed = JSON.parse(data);
             if (parsed.text) {
+              if (!gotFirstToken) {
+                gotFirstToken = true;
+                statusEl.textContent = 'Responding...';
+              }
               fullText += parsed.text;
               cursor.remove();
               contentEl.innerHTML = renderMarkdown(fullText);
@@ -332,7 +812,15 @@
       cursor.remove();
       streaming = false;
       sendBtn.disabled = false;
+      statusEl.textContent = 'Personal Assistant';
       input.focus();
+      const copyBtn = document.createElement('button');
+      copyBtn.className = 'copy-btn';
+      copyBtn.setAttribute('aria-label', 'Copy response');
+      copyBtn.textContent = 'Copy';
+      copyBtn.onclick = function() { copyMessage(this); };
+      msgEl.appendChild(copyBtn);
+      saveConversation();
     }
   }
 
@@ -357,13 +845,49 @@
   }
 
   function hideEmptyState() {
-    if (emptyState) emptyState.remove();
+    const es = document.getElementById('empty-state');
+    if (es) es.remove();
   }
 
-  // Minimal markdown renderer (bold, italic, headers, lists, tables, hr, code)
+  function showEmptyState() {
+    const es = document.createElement('div');
+    es.className = 'empty-state';
+    es.id = 'empty-state';
+    es.innerHTML = `
+      <h2>${greeting()}</h2>
+      <p>What can I help you with?</p>
+      <div class="suggestions">
+        <div class="suggestion" onclick="sendSuggestion('Morning briefing')">Morning briefing</div>
+        <div class="suggestion" onclick="sendSuggestion(&quot;What's on my calendar today?&quot;)">Today's calendar</div>
+        <div class="suggestion" onclick="sendSuggestion('Any important emails?')">Important emails</div>
+        <div class="suggestion" onclick="sendSuggestion(&quot;What's the weather?&quot;)">Weather</div>
+        <div class="suggestion" onclick="sendSuggestion(&quot;What's in the news?&quot;)">News headlines</div>
+      </div>
+    `;
+    messages.insertBefore(es, messages.firstChild);
+  }
+
+  // --- Copy ---
+  async function copyMessage(btn) {
+    const content = btn.previousElementSibling;
+    const text = content ? content.innerText : '';
+    try {
+      await navigator.clipboard.writeText(text);
+      const orig = btn.textContent;
+      btn.textContent = 'Copied!';
+      btn.style.color = '#70c070';
+      setTimeout(() => { btn.textContent = orig; btn.style.color = ''; }, 1500);
+    } catch (e) {
+      btn.textContent = 'Failed';
+      setTimeout(() => { btn.textContent = 'Copy'; }, 1500);
+    }
+  }
+
+  // --- Markdown renderer ---
   function renderMarkdown(text) {
     const esc = s => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
     const inline = s => esc(s)
+      .replace(/\[([^\]]+)\]\((https?:\/\/[^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>')
       .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
       .replace(/\*(.+?)\*/g, '<em>$1</em>')
       .replace(/`([^`]+)`/g, '<code>$1</code>');
@@ -374,11 +898,10 @@
 
     while (i < lines.length) {
       const line = lines[i];
-      // Table: header row followed by separator row
       if (/^\|/.test(line) && i + 1 < lines.length && /^\|[-:| ]+\|/.test(lines[i + 1])) {
         const parseRow = r => r.trim().replace(/^\||\|$/g, '').split('|').map(c => c.trim());
         const headers = parseRow(line);
-        i += 2; // skip header + separator
+        i += 2;
         const rows = [];
         while (i < lines.length && /^\|/.test(lines[i])) {
           rows.push(parseRow(lines[i]));
@@ -386,16 +909,13 @@
         }
         const ths = headers.map(h => `<th>${inline(h)}</th>`).join('');
         const trs = rows.map(r => '<tr>' + r.map(c => `<td>${inline(c)}</td>`).join('') + '</tr>').join('');
-        out.push(`<table><thead><tr>${ths}</tr></thead><tbody>${trs}</tbody></table>`);
+        out.push(`<div class="table-wrap"><table><thead><tr>${ths}</tr></thead><tbody>${trs}</tbody></table></div>`);
         continue;
       }
-      // Headers
       const h3 = line.match(/^### (.+)$/); if (h3) { out.push(`<h3>${inline(h3[1])}</h3>`); i++; continue; }
       const h2 = line.match(/^## (.+)$/);  if (h2) { out.push(`<h2>${inline(h2[1])}</h2>`); i++; continue; }
       const h1 = line.match(/^# (.+)$/);   if (h1) { out.push(`<h1>${inline(h1[1])}</h1>`); i++; continue; }
-      // HR
       if (/^---$/.test(line)) { out.push('<hr>'); i++; continue; }
-      // List items — collect consecutive
       if (/^[-*] /.test(line)) {
         const items = [];
         while (i < lines.length && /^[-*] /.test(lines[i])) {
@@ -405,9 +925,7 @@
         out.push(`<ul>${items.join('')}</ul>`);
         continue;
       }
-      // Blank line
       if (line.trim() === '') { out.push(''); i++; continue; }
-      // Paragraph
       out.push(`<p>${inline(line)}</p>`);
       i++;
     }

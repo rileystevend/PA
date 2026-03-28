@@ -37,6 +37,7 @@ def index():
 
 class ChatRequest(BaseModel):
     message: str
+    history: list = []
 
 
 @app.post("/chat")
@@ -46,7 +47,7 @@ async def chat(req: ChatRequest):
     Frontend connects via EventSource and reads data: {...} chunks.
     """
     return StreamingResponse(
-        stream_response(req.message),
+        stream_response(req.message, req.history),
         media_type="text/event-stream",
         headers={
             "Cache-Control": "no-cache",
