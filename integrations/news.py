@@ -2,7 +2,7 @@
 RSS news feed reader.
 
 Sources:
-  - Austin American-Statesman (paywalled, uses statesman_auth session)
+  - Google News (Austin, TX)
   - Bloomberg Markets
   - TechCrunch
 
@@ -18,15 +18,13 @@ from pathlib import Path
 import feedparser
 import httpx
 
-from integrations import statesman_auth
-
 logger = logging.getLogger(__name__)
 
 CACHE_DIR = Path.home() / ".pa" / "cache"
 CACHE_TTL_MINUTES = 15
 
 FEEDS = {
-    "statesman": "https://www.statesman.com/arcio/rss/",
+    "austin": "https://news.google.com/rss/search?q=Austin+Texas&hl=en-US&gl=US&ceid=US:en",
     "bloomberg": "https://feeds.bloomberg.com/markets/news.rss",
     "techcrunch": "https://techcrunch.com/feed/",
 }
@@ -62,11 +60,7 @@ def _fetch_feed(source: str, url: str) -> list[dict]:
     if cached is not None:
         return cached
 
-    if source == "statesman":
-        articles = _fetch_statesman()
-    else:
-        articles = _fetch_public(url, source)
-
+    articles = _fetch_public(url, source)
     _save_cache(source, articles)
     return articles
 
@@ -76,21 +70,6 @@ def _fetch_public(url: str, source: str) -> list[dict]:
     resp.raise_for_status()
     feed = feedparser.parse(resp.text)
     return _parse_entries(feed.entries, source)[:MAX_ARTICLES_PER_SOURCE]
-
-
-def _fetch_statesman() -> list[dict]:
-    client = statesman_auth.get_session()
-    resp = client.get(FEEDS["statesman"], timeout=10)
-
-    # Detect session expiry via redirect
-    if resp.is_redirect or "signin" in str(resp.url):
-        statesman_auth.invalidate()
-        client = statesman_auth.get_session()
-        resp = client.get(FEEDS["statesman"], timeout=10)
-
-    resp.raise_for_status()
-    feed = feedparser.parse(resp.text)
-    return _parse_entries(feed.entries, "statesman")[:MAX_ARTICLES_PER_SOURCE]
 
 
 def _parse_entries(entries, source: str) -> list[dict]:

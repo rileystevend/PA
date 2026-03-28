@@ -34,6 +34,8 @@ def is_expired(token: dict) -> bool:
     expiry_str = token.get("expiry")
     if expiry_str and isinstance(expiry_str, str):
         exp_dt = datetime.fromisoformat(expiry_str.replace("Z", "+00:00"))
+        if exp_dt.tzinfo is None:
+            exp_dt = exp_dt.replace(tzinfo=timezone.utc)
         return datetime.now(timezone.utc) >= exp_dt
 
     # Microsoft: unix timestamp in "expires_on"
@@ -94,7 +96,7 @@ def _refresh_google(token: dict) -> dict:
         "token_uri": creds.token_uri,
         "client_id": creds.client_id,
         "client_secret": creds.client_secret,
-        "expiry": creds.expiry.isoformat() if creds.expiry else None,
+        "expiry": creds.expiry.replace(tzinfo=timezone.utc).isoformat() if creds.expiry else None,
     }
     save("google", new_token)
     return new_token
