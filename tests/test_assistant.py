@@ -1,10 +1,12 @@
 """Tests for agent/assistant.py"""
 
+import asyncio
+import json
 from unittest.mock import MagicMock, patch
 
 import pytest
 
-from agent.assistant import is_briefing_intent, _dispatch_tool
+from agent.assistant import is_briefing_intent, _dispatch_tool, stream_response
 
 
 class TestIsBriefingIntent:
@@ -84,3 +86,53 @@ class TestDispatchTool:
     def test_raises_on_unknown_tool(self):
         with pytest.raises(ValueError, match="Unknown tool"):
             _dispatch_tool("nonexistent_tool", {})
+
+
+class TestStreamResponseErrorHandling:
+    """Tests for FINDING-002 fix: SSE errors surfaced as error events instead of hanging."""
+
+    def _collect(self, coro):
+        async def _run():
+            chunks = []
+            async for chunk in coro:
+                chunks.append(chunk)
+            return chunks
+        return asyncio.run(_run())
+
+    def test_exception_yields_error_sse_event(self):
+        """When _stream_briefing raises, stream_response yields an error SSE event."""
+        async def boom():
+            raise RuntimeError("No google token found")
+            yield  # make it an async generator
+
+        with patch("agent.assistant._stream_briefing", side_effect=boom):
+            chunks = self._collect(stream_response("morning briefing"))
+
+        # Should get an error event + DONE, not an empty stream
+        assert any('"error"' in c for c in chunks)
+        assert any("[DONE]" in c for c in chunks)
+
+    def test_exception_error_event_contains_message(self):
+        """The error SSE event contains the exception message."""
+        async def boom():
+            raise RuntimeError("No google token found")
+            yield
+
+        with patch("agent.assistant._stream_briefing", side_effect=boom):
+            chunks = self._collect(stream_response("morning briefing"))
+
+        error_chunks = [c for c in chunks if '"error"' in c]
+        assert len(error_chunks) == 1
+        payload = json.loads(error_chunks[0].replace("data: ", "").strip())
+        assert "No google token found" in payload["error"]
+
+    def test_done_sent_after_error(self):
+        """[DONE] is always the last chunk even on error, so the frontend can clean up."""
+        async def boom():
+            raise ValueError("token expired")
+            yield
+
+        with patch("agent.assistant._stream_briefing", side_effect=boom):
+            chunks = self._collect(stream_response("morning briefing"))
+
+        assert chunks[-1].strip() == "data: [DONE]"
