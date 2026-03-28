@@ -218,7 +218,7 @@
       padding: 24px;
       display: flex;
       flex-direction: column;
-      gap: 16px;
+      gap: 24px;
     }
 
     .message {
@@ -273,15 +273,17 @@
 
     /* Markdown rendering */
     .message.assistant h1, .message.assistant h2, .message.assistant h3 {
-      margin: 12px 0 6px;
+      margin: 16px 0 6px;
       font-family: 'Geist', sans-serif;
       font-weight: 600;
     }
     .message.assistant h2 { font-size: 15px; color: var(--accent-light); }
     .message.assistant h3 { font-size: 14px; color: var(--text-muted); }
-    .message.assistant p { margin: 6px 0; }
-    .message.assistant ul, .message.assistant ol { margin: 6px 0 6px 20px; }
-    .message.assistant li { margin: 3px 0; }
+    .message.assistant p { margin: 10px 0; }
+    .message.assistant p:first-child { margin-top: 0; }
+    .message.assistant p:last-child { margin-bottom: 0; }
+    .message.assistant ul, .message.assistant ol { margin: 8px 0 8px 20px; }
+    .message.assistant li { margin: 4px 0; }
     .message.assistant strong { color: var(--text); }
     .message.assistant code {
       background: var(--surface-2);
