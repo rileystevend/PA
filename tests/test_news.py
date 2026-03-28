@@ -44,58 +44,43 @@ def _make_http_resp(text):
 
 
 class TestGetHeadlines:
-    def test_returns_articles_from_all_sources(self, monkeypatch, tmp_path):
-        # Each source gets unique URLs to prevent deduplication swallowing results
+    def test_returns_articles_from_all_sources(self, monkeypatch):
         def fake_httpx_get(url, **kwargs):
             if "bloomberg" in url:
                 return _make_http_resp(_make_feed_xml("bloomberg"))
             if "techcrunch" in url:
                 return _make_http_resp(_make_feed_xml("techcrunch"))
-            # austin google news feed — distinct from statesman
             return _make_http_resp(_make_feed_xml("austin"))
 
-        mock_session = MagicMock()
-        mock_session.get.return_value = _make_http_resp(_make_feed_xml("statesman"))
-
         with patch("integrations.news.httpx.get", side_effect=fake_httpx_get):
-            with patch("integrations.news.statesman_auth.get_session", return_value=mock_session):
-                results = news.get_headlines()
+            results = news.get_headlines()
 
         sources = {r.get("source") for r in results if "source" in r}
         assert "bloomberg" in sources
         assert "techcrunch" in sources
-        assert "statesman" in sources
+        assert "austin" in sources
 
     def test_returns_partial_when_one_source_fails(self, monkeypatch):
-        good_resp = _make_http_resp(SAMPLE_FEED_XML)
-        mock_session = MagicMock()
-        mock_session.get.side_effect = Exception("Statesman down")
-
         def fake_httpx_get(url, **kwargs):
-            if "bloomberg" in url or "techcrunch" in url:
-                return good_resp
-            raise Exception("unexpected")
+            if "bloomberg" in url:
+                return _make_http_resp(_make_feed_xml("bloomberg"))
+            if "techcrunch" in url:
+                return _make_http_resp(_make_feed_xml("techcrunch"))
+            raise Exception("Austin feed down")
 
         with patch("integrations.news.httpx.get", side_effect=fake_httpx_get):
-            with patch("integrations.news.statesman_auth.get_session", return_value=mock_session):
-                results = news.get_headlines()
+            results = news.get_headlines()
 
-        # Should still have results from working feeds
         assert any(r.get("source") in ("bloomberg", "techcrunch") for r in results)
-        # Failed source returns an error dict, not an exception
         error_items = [r for r in results if "error" in r]
         assert len(error_items) >= 1
 
     def test_deduplicates_by_url(self, monkeypatch):
-        # Both bloomberg and techcrunch return the same URL
-        dup_feed = SAMPLE_FEED_XML  # same articles
-        good_resp = _make_http_resp(dup_feed)
-        mock_session = MagicMock()
-        mock_session.get.return_value = good_resp
+        # All feeds return the same articles — only unique URLs should appear
+        good_resp = _make_http_resp(SAMPLE_FEED_XML)
 
         with patch("integrations.news.httpx.get", return_value=good_resp):
-            with patch("integrations.news.statesman_auth.get_session", return_value=mock_session):
-                results = news.get_headlines()
+            results = news.get_headlines()
 
         urls = [r.get("url") for r in results if "url" in r]
         assert len(urls) == len(set(urls))
@@ -110,8 +95,7 @@ class TestGetHeadlines:
         }))
 
         with patch("integrations.news.httpx.get") as mock_get:
-            with patch("integrations.news.statesman_auth.get_session"):
-                news._fetch_feed("bloomberg", news.FEEDS["bloomberg"])
+            news._fetch_feed("bloomberg", news.FEEDS["bloomberg"])
 
         mock_get.assert_not_called()
 
