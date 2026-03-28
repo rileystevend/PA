@@ -179,6 +179,7 @@
       color: var(--text);
     }
     .quick-action:active { background: var(--surface-2); }
+    .quick-action:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 
     .qa-icon {
       font-size: 15px;
@@ -376,7 +377,8 @@
       font-family: 'Geist', -apple-system, sans-serif;
       line-height: 1.5;
     }
-    #input:focus { border-color: var(--accent); }
+    #input:focus { border-color: var(--accent); outline: none; }
+    #input:focus-visible { border-color: var(--accent); outline: none; }
     #input::placeholder { color: var(--text-dim); }
 
     #send-btn {
@@ -391,6 +393,7 @@
       transition: background 0.15s;
     }
     #send-btn:hover { background: var(--accent-light); }
+    #send-btn:focus-visible { outline: 2px solid var(--accent-light); outline-offset: 2px; }
     #send-btn:disabled { opacity: 0.4; cursor: default; }
 
     .setup-banner {
@@ -446,6 +449,7 @@
       border-color: var(--border-2);
       color: var(--text);
     }
+    .suggestion:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
     /* Undo toast */
     #undo-toast {
