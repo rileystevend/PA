@@ -53,4 +53,49 @@ TOOLS = [
             "required": [],
         },
     },
+    {
+        "name": "get_email_thread",
+        "description": (
+            "Fetch the full body of a specific email by its Gmail message ID. "
+            "Use this before drafting a reply so you have the full context of the original message."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "message_id": {
+                    "type": "string",
+                    "description": "The Gmail message ID (from a prior get_emails call).",
+                }
+            },
+            "required": ["message_id"],
+        },
+    },
+    {
+        "name": "send_email",
+        "description": (
+            "Send an email via Gmail. "
+            "IMPORTANT: Before calling this tool, you MUST present the full draft to the user "
+            "(to, subject, and body) and explicitly ask for confirmation. "
+            "Only call send_email after the user has said 'yes', 'send it', 'looks good', or similar. "
+            "Never send without explicit approval."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "to": {
+                    "type": "string",
+                    "description": "Recipient email address.",
+                },
+                "subject": {
+                    "type": "string",
+                    "description": "Email subject line.",
+                },
+                "body": {
+                    "type": "string",
+                    "description": "Plain-text email body.",
+                },
+            },
+            "required": ["to", "subject", "body"],
+        },
+    },
 ]

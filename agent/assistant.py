@@ -223,5 +223,19 @@ def _dispatch_tool(name: str, inputs: dict) -> Any:
             return all_headlines
         return [h for h in all_headlines if h.get("source") == source]
 
+    elif name == "get_email_thread":
+        message_id = inputs.get("message_id", "")
+        if not message_id:
+            raise ValueError("message_id is required for get_email_thread")
+        return gmail.get_email_thread(message_id)
+
+    elif name == "send_email":
+        to = inputs.get("to", "")
+        subject = inputs.get("subject", "")
+        body = inputs.get("body", "")
+        if not all([to, subject, body]):
+            raise ValueError("to, subject, and body are all required for send_email")
+        return gmail.send_email(to=to, subject=subject, body=body)
+
     else:
         raise ValueError(f"Unknown tool: {name}")
