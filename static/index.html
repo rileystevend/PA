@@ -360,22 +360,59 @@
     if (emptyState) emptyState.remove();
   }
 
-  // Minimal markdown renderer (bold, italic, headers, lists, hr, code)
+  // Minimal markdown renderer (bold, italic, headers, lists, tables, hr, code)
   function renderMarkdown(text) {
-    return text
-      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-      .replace(/^### (.+)$/gm, '<h3>$1</h3>')
-      .replace(/^## (.+)$/gm, '<h2>$1</h2>')
-      .replace(/^# (.+)$/gm, '<h1>$1</h1>')
+    const esc = s => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    const inline = s => esc(s)
       .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
       .replace(/\*(.+?)\*/g, '<em>$1</em>')
-      .replace(/`([^`]+)`/g, '<code>$1</code>')
-      .replace(/^---$/gm, '<hr>')
-      .replace(/^[-*] (.+)$/gm, '<li>$1</li>')
-      .replace(/(<li>.*<\/li>)/s, '<ul>$1</ul>')
-      .replace(/\n\n/g, '</p><p>')
-      .replace(/\n/g, '<br>')
-      .replace(/^(.+)$/, '<p>$1</p>');
+      .replace(/`([^`]+)`/g, '<code>$1</code>');
+
+    const lines = text.split('\n');
+    const out = [];
+    let i = 0;
+
+    while (i < lines.length) {
+      const line = lines[i];
+      // Table: header row followed by separator row
+      if (/^\|/.test(line) && i + 1 < lines.length && /^\|[-:| ]+\|/.test(lines[i + 1])) {
+        const parseRow = r => r.trim().replace(/^\||\|$/g, '').split('|').map(c => c.trim());
+        const headers = parseRow(line);
+        i += 2; // skip header + separator
+        const rows = [];
+        while (i < lines.length && /^\|/.test(lines[i])) {
+          rows.push(parseRow(lines[i]));
+          i++;
+        }
+        const ths = headers.map(h => `<th>${inline(h)}</th>`).join('');
+        const trs = rows.map(r => '<tr>' + r.map(c => `<td>${inline(c)}</td>`).join('') + '</tr>').join('');
+        out.push(`<table><thead><tr>${ths}</tr></thead><tbody>${trs}</tbody></table>`);
+        continue;
+      }
+      // Headers
+      const h3 = line.match(/^### (.+)$/); if (h3) { out.push(`<h3>${inline(h3[1])}</h3>`); i++; continue; }
+      const h2 = line.match(/^## (.+)$/);  if (h2) { out.push(`<h2>${inline(h2[1])}</h2>`); i++; continue; }
+      const h1 = line.match(/^# (.+)$/);   if (h1) { out.push(`<h1>${inline(h1[1])}</h1>`); i++; continue; }
+      // HR
+      if (/^---$/.test(line)) { out.push('<hr>'); i++; continue; }
+      // List items — collect consecutive
+      if (/^[-*] /.test(line)) {
+        const items = [];
+        while (i < lines.length && /^[-*] /.test(lines[i])) {
+          items.push(`<li>${inline(lines[i].slice(2))}</li>`);
+          i++;
+        }
+        out.push(`<ul>${items.join('')}</ul>`);
+        continue;
+      }
+      // Blank line
+      if (line.trim() === '') { out.push(''); i++; continue; }
+      // Paragraph
+      out.push(`<p>${inline(line)}</p>`);
+      i++;
+    }
+
+    return out.join('\n');
   }
 </script>
 </body>
