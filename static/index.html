@@ -36,6 +36,19 @@
       margin-left: auto;
     }
 
+    .clear-btn {
+      background: none;
+      border: none;
+      color: #444;
+      cursor: pointer;
+      padding: 4px 8px;
+      border-radius: 6px;
+      font-size: 16px;
+      transition: color 0.15s, background 0.15s;
+      line-height: 1;
+    }
+    .clear-btn:hover { color: #888; background: #1a1a1a; }
+
     #messages {
       flex: 1;
       overflow-y: auto;
@@ -64,6 +77,7 @@
 
     .message.assistant {
       align-self: flex-start;
+      position: relative;
     }
 
     .message.assistant .content {
@@ -72,6 +86,26 @@
       border-radius: 4px 12px 12px 12px;
       padding: 16px 20px;
     }
+
+    /* Copy button */
+    .copy-btn {
+      position: absolute;
+      top: 8px;
+      right: 8px;
+      background: #1a1a1a;
+      border: 1px solid #2a2a2a;
+      border-radius: 6px;
+      color: #555;
+      cursor: pointer;
+      font-size: 13px;
+      padding: 4px 8px;
+      opacity: 0;
+      transition: opacity 0.15s, color 0.15s;
+    }
+    .copy-btn:hover { color: #aaa; }
+    .message.assistant:hover .copy-btn { opacity: 1; }
+    /* Always visible on touch devices */
+    @media (hover: none) { .copy-btn { opacity: 1; } }
 
     /* Markdown rendering */
     .message.assistant h1, .message.assistant h2, .message.assistant h3 {
@@ -96,6 +130,35 @@
       border-top: 1px solid #222;
       margin: 12px 0;
     }
+    .message.assistant a {
+      color: #7090d0;
+      text-decoration: none;
+    }
+    .message.assistant a:hover { text-decoration: underline; }
+    .message.assistant a:focus { outline: 2px solid #7090d0; border-radius: 2px; }
+
+    /* Table styling */
+    .message.assistant .table-wrap {
+      overflow-x: auto;
+      margin: 8px 0;
+    }
+    .message.assistant table {
+      border-collapse: collapse;
+      width: 100%;
+      font-size: 13px;
+    }
+    .message.assistant th, .message.assistant td {
+      border: 1px solid #2a2a2a;
+      padding: 6px 12px;
+      text-align: left;
+    }
+    .message.assistant th {
+      background: #1a1a1a;
+      color: #a0a0c0;
+      font-weight: 600;
+    }
+    .message.assistant tr:nth-child(even) td { background: #141414; }
+    .message.assistant tr:nth-child(odd) td  { background: #111111; }
 
     .cursor {
       display: inline-block;
@@ -198,25 +261,58 @@
       border-color: #2a2a4a;
       color: #a0a0c0;
     }
+
+    /* Undo toast */
+    #undo-toast {
+      position: fixed;
+      bottom: 90px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: #1e1e1e;
+      border: 1px solid #333;
+      border-radius: 8px;
+      padding: 10px 16px;
+      font-size: 13px;
+      color: #ccc;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.2s;
+      z-index: 100;
+    }
+    #undo-toast.visible { opacity: 1; pointer-events: auto; }
+    #undo-toast button {
+      background: none;
+      border: none;
+      color: #7090d0;
+      cursor: pointer;
+      font-size: 13px;
+      padding: 0;
+      font-weight: 600;
+    }
+    #undo-toast button:hover { color: #90b0f0; }
   </style>
 </head>
 <body>
 
 <header>
   <h1>PA</h1>
-  <span class="status" id="status">Personal Assistant</span>
+  <span class="status" id="status" aria-live="polite">Personal Assistant</span>
+  <button class="clear-btn" id="clear-btn" onclick="clearConversation()" aria-label="Clear conversation" title="Clear conversation">⊘</button>
 </header>
 
 <div id="messages">
   <div class="empty-state" id="empty-state">
-    <h2>Good morning.</h2>
+    <h2 id="greeting-text">Good morning.</h2>
     <p>What can I help you with?</p>
     <div class="suggestions">
       <div class="suggestion" onclick="sendSuggestion('Morning briefing')">Morning briefing</div>
       <div class="suggestion" onclick="sendSuggestion(&quot;What's on my calendar today?&quot;)">Today's calendar</div>
       <div class="suggestion" onclick="sendSuggestion('Any important emails?')">Important emails</div>
-      <div class="suggestion" onclick="sendSuggestion('What\'s the weather?')">Weather</div>
-      <div class="suggestion" onclick="sendSuggestion('What\'s in the news?')">News headlines</div>
+      <div class="suggestion" onclick="sendSuggestion(&quot;What's the weather?&quot;)">Weather</div>
+      <div class="suggestion" onclick="sendSuggestion(&quot;What's in the news?&quot;)">News headlines</div>
     </div>
   </div>
 </div>
@@ -228,12 +324,34 @@
   </div>
 </div>
 
+<div id="undo-toast">
+  Conversation cleared.
+  <button onclick="undoClear()">Undo</button>
+</div>
+
 <script>
   const input = document.getElementById('input');
   const messages = document.getElementById('messages');
-  const emptyState = document.getElementById('empty-state');
   const sendBtn = document.getElementById('send-btn');
+  const statusEl = document.getElementById('status');
+  const undoToast = document.getElementById('undo-toast');
+
   let streaming = false;
+  let undoSnapshot = null;  // stores [{role, text}] for undo
+  let undoTimer = null;
+
+  const STORAGE_KEY = 'pa_conversation';
+  const MAX_MESSAGES = 50;
+
+  // --- Greeting ---
+  function greeting() {
+    const h = new Date().getHours();
+    if (h >= 5 && h < 12) return 'Good morning.';
+    if (h >= 12 && h < 17) return 'Good afternoon.';
+    if (h >= 17 && h < 21) return 'Good evening.';
+    return 'Working late?';
+  }
+  document.getElementById('greeting-text').textContent = greeting();
 
   // Check URL for OAuth success
   const params = new URLSearchParams(window.location.search);
@@ -257,6 +375,84 @@
     }
   });
 
+  // --- Conversation persistence ---
+  function saveConversation() {
+    const msgs = [...messages.querySelectorAll('.message')].map(el => ({
+      role: el.classList.contains('user') ? 'user' : 'assistant',
+      text: el.classList.contains('user') ? el.textContent : el.querySelector('.content').innerHTML,
+      isHTML: el.classList.contains('assistant'),
+    }));
+    const capped = msgs.slice(-MAX_MESSAGES);
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(capped));
+    } catch (e) {
+      // QuotaExceededError — degrade silently
+    }
+  }
+
+  function loadConversation() {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (!raw) return;
+      const msgs = JSON.parse(raw);
+      if (!Array.isArray(msgs) || msgs.length === 0) return;
+
+      hideEmptyState();
+      for (const m of msgs) {
+        const el = document.createElement('div');
+        el.className = `message ${m.role}`;
+        if (m.role === 'assistant') {
+          el.innerHTML = `
+            <div class="content">${m.text}</div>
+            <button class="copy-btn" aria-label="Copy response" onclick="copyMessage(this)">Copy</button>
+          `;
+        } else {
+          el.textContent = m.text;
+        }
+        messages.appendChild(el);
+      }
+      messages.scrollTop = messages.scrollHeight;
+    } catch (e) {
+      // Corrupted JSON — show empty state (already shown by default)
+    }
+  }
+
+  function clearConversation() {
+    // Snapshot for undo
+    undoSnapshot = localStorage.getItem(STORAGE_KEY);
+
+    // Clear
+    localStorage.removeItem(STORAGE_KEY);
+    [...messages.querySelectorAll('.message, [style*="text-align"]')].forEach(el => el.remove());
+    showEmptyState();
+
+    // Show undo toast
+    clearTimeout(undoTimer);
+    undoToast.classList.add('visible');
+    undoTimer = setTimeout(() => {
+      undoToast.classList.remove('visible');
+      undoSnapshot = null;
+    }, 4000);
+  }
+
+  function undoClear() {
+    clearTimeout(undoTimer);
+    undoToast.classList.remove('visible');
+    if (!undoSnapshot) return;
+    try {
+      localStorage.setItem(STORAGE_KEY, undoSnapshot);
+    } catch (e) {}
+    undoSnapshot = null;
+    // Reload from storage
+    hideEmptyState();
+    [...messages.querySelectorAll('.message')].forEach(el => el.remove());
+    loadConversation();
+  }
+
+  // Load history on page start
+  loadConversation();
+
+  // --- Sending ---
   function sendSuggestion(text) {
     input.value = text;
     send();
@@ -277,6 +473,7 @@
   async function streamMessage(message) {
     streaming = true;
     sendBtn.disabled = true;
+    statusEl.textContent = 'Thinking...';
 
     const msgEl = addMessage('assistant', '');
     const contentEl = msgEl.querySelector('.content');
@@ -285,6 +482,7 @@
     contentEl.appendChild(cursor);
 
     let fullText = '';
+    let gotFirstToken = false;
 
     try {
       const resp = await fetch('/chat', {
@@ -317,6 +515,10 @@
           try {
             const parsed = JSON.parse(data);
             if (parsed.text) {
+              if (!gotFirstToken) {
+                gotFirstToken = true;
+                statusEl.textContent = 'Responding...';
+              }
               fullText += parsed.text;
               cursor.remove();
               contentEl.innerHTML = renderMarkdown(fullText);
@@ -332,7 +534,17 @@
       cursor.remove();
       streaming = false;
       sendBtn.disabled = false;
+      statusEl.textContent = 'Personal Assistant';
       input.focus();
+      // Add copy button now that the message is complete
+      const copyBtn = document.createElement('button');
+      copyBtn.className = 'copy-btn';
+      copyBtn.setAttribute('aria-label', 'Copy response');
+      copyBtn.textContent = 'Copy';
+      copyBtn.onclick = function() { copyMessage(this); };
+      msgEl.appendChild(copyBtn);
+      // Save completed conversation
+      saveConversation();
     }
   }
 
@@ -357,13 +569,50 @@
   }
 
   function hideEmptyState() {
-    if (emptyState) emptyState.remove();
+    const es = document.getElementById('empty-state');
+    if (es) es.remove();
   }
 
-  // Minimal markdown renderer (bold, italic, headers, lists, tables, hr, code)
+  function showEmptyState() {
+    const es = document.createElement('div');
+    es.className = 'empty-state';
+    es.id = 'empty-state';
+    es.innerHTML = `
+      <h2>${greeting()}</h2>
+      <p>What can I help you with?</p>
+      <div class="suggestions">
+        <div class="suggestion" onclick="sendSuggestion('Morning briefing')">Morning briefing</div>
+        <div class="suggestion" onclick="sendSuggestion(&quot;What's on my calendar today?&quot;)">Today's calendar</div>
+        <div class="suggestion" onclick="sendSuggestion('Any important emails?')">Important emails</div>
+        <div class="suggestion" onclick="sendSuggestion(&quot;What's the weather?&quot;)">Weather</div>
+        <div class="suggestion" onclick="sendSuggestion(&quot;What's in the news?&quot;)">News headlines</div>
+      </div>
+    `;
+    messages.insertBefore(es, messages.firstChild);
+  }
+
+  // --- Copy ---
+  async function copyMessage(btn) {
+    const content = btn.previousElementSibling;
+    const text = content ? content.innerText : '';
+    try {
+      await navigator.clipboard.writeText(text);
+      const orig = btn.textContent;
+      btn.textContent = 'Copied!';
+      btn.style.color = '#70c070';
+      setTimeout(() => { btn.textContent = orig; btn.style.color = ''; }, 1500);
+    } catch (e) {
+      btn.textContent = 'Failed';
+      setTimeout(() => { btn.textContent = 'Copy'; }, 1500);
+    }
+  }
+
+  // --- Markdown renderer ---
   function renderMarkdown(text) {
     const esc = s => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
     const inline = s => esc(s)
+      // Links — allowlist https?:// only (blocks javascript:, data:)
+      .replace(/\[([^\]]+)\]\((https?:\/\/[^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>')
       .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
       .replace(/\*(.+?)\*/g, '<em>$1</em>')
       .replace(/`([^`]+)`/g, '<code>$1</code>');
@@ -386,7 +635,7 @@
         }
         const ths = headers.map(h => `<th>${inline(h)}</th>`).join('');
         const trs = rows.map(r => '<tr>' + r.map(c => `<td>${inline(c)}</td>`).join('') + '</tr>').join('');
-        out.push(`<table><thead><tr>${ths}</tr></thead><tbody>${trs}</tbody></table>`);
+        out.push(`<div class="table-wrap"><table><thead><tr>${ths}</tr></thead><tbody>${trs}</tbody></table></div>`);
         continue;
       }
       // Headers
