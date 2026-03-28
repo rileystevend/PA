@@ -89,6 +89,15 @@
       border-right: none;
     }
 
+    /* Mobile overlay backdrop */
+    #sidebar-backdrop {
+      display: none;
+      position: fixed;
+      inset: 0;
+      z-index: 49;
+      background: rgba(0,0,0,0.5);
+    }
+
     /* On narrow viewports, sidebar defaults to collapsed and overlays the chat */
     @media (max-width: 600px) {
       #sidebar {
@@ -103,6 +112,8 @@
         width: 220px;
         min-width: 220px;
       }
+      #sidebar-backdrop.visible { display: block; }
+      #input-area { padding: 12px; }
     }
 
     .sidebar-section {
@@ -435,6 +446,8 @@
   <button class="icon-btn" id="clear-btn" onclick="clearConversation()" aria-label="Clear conversation" title="Clear conversation">⊘</button>
 </header>
 
+<div id="sidebar-backdrop" onclick="closeSidebarOnMobile()" aria-hidden="true"></div>
+
 <div id="main-layout">
 
   <!-- ── Sidebar ── -->
@@ -574,6 +587,7 @@
   const statusEl = document.getElementById('status');
   const undoToast = document.getElementById('undo-toast');
   const sidebar = document.getElementById('sidebar');
+  const sidebarBackdrop = document.getElementById('sidebar-backdrop');
 
   let streaming = false;
   let undoSnapshot = null;
@@ -612,16 +626,29 @@
   }
 
   function applySidebarState() {
+    const isMobile = window.innerWidth <= 600;
     if (sidebarOpen) {
       sidebar.classList.remove('collapsed');
+      if (isMobile) sidebarBackdrop.classList.add('visible');
     } else {
       sidebar.classList.add('collapsed');
+      sidebarBackdrop.classList.remove('visible');
+    }
+  }
+
+  function closeSidebarOnMobile() {
+    if (window.innerWidth <= 600) {
+      sidebarOpen = false;
+      localStorage.setItem(SIDEBAR_KEY, false);
+      applySidebarState();
     }
   }
 
   function runAction(key) {
     const prompt = ACTIONS[key];
     if (!prompt) return;
+    // On mobile, close the sidebar so the response is visible
+    closeSidebarOnMobile();
     sendSuggestion(prompt);
   }
 
