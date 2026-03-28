@@ -34,7 +34,7 @@ def is_briefing_intent(message: str) -> bool:
     return any(kw in lower for kw in BRIEFING_KEYWORDS)
 
 
-async def stream_response(message: str) -> AsyncGenerator[str, None]:
+async def stream_response(message: str, history: list = None) -> AsyncGenerator[str, None]:
     """
     Main entry point. Detects intent and routes to the appropriate mode.
     Yields SSE-formatted strings.
@@ -43,7 +43,7 @@ async def stream_response(message: str) -> AsyncGenerator[str, None]:
         async for chunk in _stream_briefing():
             yield chunk
     else:
-        async for chunk in _stream_conversational(message):
+        async for chunk in _stream_conversational(message, history or []):
             yield chunk
 
 
@@ -103,12 +103,13 @@ def _format_result(label: str, result: Any) -> str:
 # Mode 2 — Conversational tool-use loop
 # ---------------------------------------------------------------------------
 
-async def _stream_conversational(message: str) -> AsyncGenerator[str, None]:
+async def _stream_conversational(message: str, history: list = None) -> AsyncGenerator[str, None]:
     """
     Agentic loop: Claude calls tools, we dispatch them (in parallel when independent),
     feed results back, repeat until Claude returns plain text.
+    history is a list of {"role": "user"|"assistant", "content": "..."} dicts.
     """
-    messages = [{"role": "user", "content": message}]
+    messages = list(history or []) + [{"role": "user", "content": message}]
 
     while True:
         # Non-streaming call to get tool_use blocks

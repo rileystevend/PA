@@ -753,10 +753,20 @@
     let gotFirstToken = false;
 
     try {
+      // Build conversation history from displayed messages (excluding the two just added:
+      // the new user message and the empty assistant placeholder).
+      const allMsgs = [...messages.querySelectorAll('.message')];
+      const history = allMsgs.slice(0, -2).slice(-20).map(el => ({
+        role: el.classList.contains('user') ? 'user' : 'assistant',
+        content: el.classList.contains('user')
+          ? el.textContent.trim()
+          : (el.querySelector('.content')?.textContent || '').trim(),
+      })).filter(m => m.content);
+
       const resp = await fetch('/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message }),
+        body: JSON.stringify({ message, history }),
       });
 
       if (!resp.ok) {
