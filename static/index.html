@@ -665,7 +665,8 @@
   function initSidebar() {
     const saved = localStorage.getItem(SIDEBAR_KEY);
     const isMobile = window.innerWidth <= 600;
-    sidebarOpen = saved === null ? !isMobile : saved === 'true';
+    // Mobile always starts collapsed — overlay should never auto-open
+    sidebarOpen = isMobile ? false : (saved === null ? true : saved === 'true');
     applySidebarState();
   }
 
