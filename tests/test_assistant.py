@@ -59,6 +59,28 @@ class TestDispatchTool:
         assert len(result) == 1
         assert result[0]["source"] == "techcrunch"
 
+    def test_get_email_thread(self):
+        thread = {"id": "msg1", "subject": "Hello", "body": "Hi there"}
+        with patch("agent.assistant.gmail.get_email_thread", return_value=thread):
+            result = _dispatch_tool("get_email_thread", {"message_id": "msg1"})
+        assert result["subject"] == "Hello"
+
+    def test_get_email_thread_missing_id(self):
+        with pytest.raises(ValueError, match="message_id is required"):
+            _dispatch_tool("get_email_thread", {})
+
+    def test_send_email(self):
+        sent = {"message_id": "sent1", "thread_id": "t1"}
+        with patch("agent.assistant.gmail.send_email", return_value=sent):
+            result = _dispatch_tool("send_email", {
+                "to": "a@b.com", "subject": "Hey", "body": "Body text"
+            })
+        assert result["message_id"] == "sent1"
+
+    def test_send_email_missing_fields(self):
+        with pytest.raises(ValueError, match="to, subject, and body"):
+            _dispatch_tool("send_email", {"to": "a@b.com"})
+
     def test_raises_on_unknown_tool(self):
         with pytest.raises(ValueError, match="Unknown tool"):
             _dispatch_tool("nonexistent_tool", {})
