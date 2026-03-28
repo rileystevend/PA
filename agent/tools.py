@@ -9,35 +9,21 @@ TOOLS = [
     {
         "name": "get_emails",
         "description": (
-            "Fetch recent unread emails from Gmail and Outlook (last 24 hours, max 20 each). "
+            "Fetch recent unread emails from Gmail (last 24 hours, max 20). "
             "Returns subject, sender, date, and snippet for each email."
         ),
         "input_schema": {
             "type": "object",
-            "properties": {
-                "source": {
-                    "type": "string",
-                    "enum": ["gmail", "outlook", "both"],
-                    "description": "Which email provider to fetch from. Default: both.",
-                }
-            },
+            "properties": {},
             "required": [],
         },
     },
     {
         "name": "get_calendar_events",
-        "description": (
-            "Fetch today's calendar events from Google Calendar and/or Outlook Calendar."
-        ),
+        "description": "Fetch today's calendar events from Google Calendar.",
         "input_schema": {
             "type": "object",
-            "properties": {
-                "source": {
-                    "type": "string",
-                    "enum": ["google", "outlook", "both"],
-                    "description": "Which calendar to fetch from. Default: both.",
-                }
-            },
+            "properties": {},
             "required": [],
         },
     },

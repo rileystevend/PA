@@ -22,11 +22,10 @@ load_dotenv()
 
 from agent.assistant import stream_response
 from auth.google import router as google_router
-from auth.microsoft import router as microsoft_router
 
 app = FastAPI(title="PA — Personal Assistant")
 app.include_router(google_router)
-app.include_router(microsoft_router)
+# Outlook/Microsoft router excluded until MS app credentials are available
 
 STATIC_DIR = Path(__file__).parent / "static"
 

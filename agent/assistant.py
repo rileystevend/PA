@@ -19,7 +19,7 @@ from typing import Any
 import anthropic
 
 from agent.tools import TOOLS
-from integrations import gcal, gmail, news, outlook, weather
+from integrations import gcal, gmail, news, weather
 
 logger = logging.getLogger(__name__)
 
@@ -59,22 +59,18 @@ async def _stream_briefing() -> AsyncGenerator[str, None]:
     results = await asyncio.gather(
         asyncio.to_thread(gmail.get_recent_emails),
         asyncio.to_thread(gcal.get_todays_events),
-        asyncio.to_thread(outlook.get_recent_emails),
-        asyncio.to_thread(outlook.get_todays_events),
         asyncio.to_thread(weather.get_weather),
         asyncio.to_thread(news.get_headlines),
         return_exceptions=True,
     )
 
-    gmail_emails, gcal_events, outlook_emails, outlook_events, wx, headlines = results
+    gmail_emails, gcal_events, wx, headlines = results
 
     # Build context block — include error notes for failed sources
     context_parts = []
 
     context_parts.append(_format_result("Gmail emails", gmail_emails))
     context_parts.append(_format_result("Google Calendar events", gcal_events))
-    context_parts.append(_format_result("Outlook emails", outlook_emails))
-    context_parts.append(_format_result("Outlook calendar events", outlook_events))
     context_parts.append(_format_result("Weather", wx))
     context_parts.append(_format_result("News headlines", headlines))
 
@@ -213,20 +209,10 @@ def _dispatch_tool(name: str, inputs: dict) -> Any:
     source = inputs.get("source", "both")
 
     if name == "get_emails":
-        results = []
-        if source in ("gmail", "both"):
-            results.extend(gmail.get_recent_emails())
-        if source in ("outlook", "both"):
-            results.extend(outlook.get_recent_emails())
-        return results
+        return gmail.get_recent_emails()
 
     elif name == "get_calendar_events":
-        results = []
-        if source in ("google", "both"):
-            results.extend(gcal.get_todays_events())
-        if source in ("outlook", "both"):
-            results.extend(outlook.get_todays_events())
-        return results
+        return gcal.get_todays_events()
 
     elif name == "get_weather":
         return weather.get_weather()

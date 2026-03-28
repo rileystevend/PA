@@ -17,12 +17,8 @@ from agent import assistant
 
 MOCK_GMAIL = [{"subject": "Budget review", "from": "boss@co.com",
                "date": "Thu, 27 Mar 2026", "snippet": "Please review"}]
-MOCK_OUTLOOK_MAIL = [{"subject": "Outlook msg", "from": "alice@co.com",
-                      "date": "Thu, 27 Mar 2026", "snippet": "Hi"}]
 MOCK_GCAL = [{"title": "Standup", "start": "2026-03-27T09:00:00", "end": "2026-03-27T09:30:00",
               "calendar": "Work", "location": "", "description": ""}]
-MOCK_OUTLOOK_CAL = [{"title": "1:1", "start": "2026-03-27T14:00:00",
-                     "end": "2026-03-27T14:30:00", "location": "Teams"}]
 MOCK_WEATHER = {"location": "Austin", "temp_f": 72, "feels_like_f": 70,
                 "description": "Partly cloudy", "humidity_pct": 55, "wind_mph": 8}
 MOCK_NEWS = [{"title": "Austin flooding", "url": "https://statesman.com/1",
@@ -53,8 +49,6 @@ class TestBriefingFlow:
 
         with patch("agent.assistant.gmail.get_recent_emails", return_value=MOCK_GMAIL), \
              patch("agent.assistant.gcal.get_todays_events", return_value=MOCK_GCAL), \
-             patch("agent.assistant.outlook.get_recent_emails", return_value=MOCK_OUTLOOK_MAIL), \
-             patch("agent.assistant.outlook.get_todays_events", return_value=MOCK_OUTLOOK_CAL), \
              patch("agent.assistant.weather.get_weather", return_value=MOCK_WEATHER), \
              patch("agent.assistant.news.get_headlines", return_value=MOCK_NEWS), \
              patch("agent.assistant._stream_claude", side_effect=fake_stream_claude):
@@ -66,7 +60,7 @@ class TestBriefingFlow:
         # All sources should appear in the prompt
         assert "Gmail" in prompt
         assert "Google Calendar" in prompt
-        assert "Outlook" in prompt
+        assert "Gmail" in prompt
         assert "Weather" in prompt
         assert "News" in prompt
 
@@ -79,8 +73,6 @@ class TestBriefingFlow:
         with patch("agent.assistant.gmail.get_recent_emails",
                    side_effect=RuntimeError("Gmail API error")), \
              patch("agent.assistant.gcal.get_todays_events", return_value=MOCK_GCAL), \
-             patch("agent.assistant.outlook.get_recent_emails", return_value=MOCK_OUTLOOK_MAIL), \
-             patch("agent.assistant.outlook.get_todays_events", return_value=MOCK_OUTLOOK_CAL), \
              patch("agent.assistant.weather.get_weather", return_value=MOCK_WEATHER), \
              patch("agent.assistant.news.get_headlines", return_value=MOCK_NEWS), \
              patch("agent.assistant._stream_claude", side_effect=fake_stream_claude):
@@ -101,8 +93,6 @@ class TestBriefingFlow:
         with patch("agent.assistant.gmail.get_recent_emails",
                    side_effect=RuntimeError("token expired")), \
              patch("agent.assistant.gcal.get_todays_events", return_value=[]), \
-             patch("agent.assistant.outlook.get_recent_emails", return_value=[]), \
-             patch("agent.assistant.outlook.get_todays_events", return_value=[]), \
              patch("agent.assistant.weather.get_weather", return_value=MOCK_WEATHER), \
              patch("agent.assistant.news.get_headlines", return_value=[]), \
              patch("agent.assistant._stream_claude", side_effect=fake_stream_claude):
@@ -118,8 +108,6 @@ class TestBriefingFlow:
 
         with patch("agent.assistant.gmail.get_recent_emails", return_value=[]), \
              patch("agent.assistant.gcal.get_todays_events", return_value=[]), \
-             patch("agent.assistant.outlook.get_recent_emails", return_value=[]), \
-             patch("agent.assistant.outlook.get_todays_events", return_value=[]), \
              patch("agent.assistant.weather.get_weather", return_value=MOCK_WEATHER), \
              patch("agent.assistant.news.get_headlines", return_value=[]), \
              patch("agent.assistant._stream_claude", side_effect=fake_stream_claude):

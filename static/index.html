@@ -229,6 +229,12 @@
 </div>
 
 <script>
+  const input = document.getElementById('input');
+  const messages = document.getElementById('messages');
+  const emptyState = document.getElementById('empty-state');
+  const sendBtn = document.getElementById('send-btn');
+  let streaming = false;
+
   // Check URL for OAuth success
   const params = new URLSearchParams(window.location.search);
   if (params.get('connected')) {
@@ -236,12 +242,6 @@
     addSystemMessage(`${provider.charAt(0).toUpperCase() + provider.slice(1)} connected successfully.`);
     window.history.replaceState({}, '', '/');
   }
-
-  const input = document.getElementById('input');
-  const messages = document.getElementById('messages');
-  const emptyState = document.getElementById('empty-state');
-  const sendBtn = document.getElementById('send-btn');
-  let streaming = false;
 
   // Auto-resize textarea
   input.addEventListener('input', () => {

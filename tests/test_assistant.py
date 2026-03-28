@@ -30,29 +30,18 @@ class TestDispatchTool:
             result = _dispatch_tool("get_weather", {})
         assert result["temp_f"] == 72
 
-    def test_get_emails_both(self):
+    def test_get_emails(self):
         gmail_emails = [{"subject": "Gmail msg"}]
-        outlook_emails = [{"subject": "Outlook msg"}]
         with patch("agent.assistant.gmail.get_recent_emails", return_value=gmail_emails):
-            with patch("agent.assistant.outlook.get_recent_emails", return_value=outlook_emails):
-                result = _dispatch_tool("get_emails", {"source": "both"})
-        assert len(result) == 2
-
-    def test_get_emails_gmail_only(self):
-        gmail_emails = [{"subject": "Gmail only"}]
-        with patch("agent.assistant.gmail.get_recent_emails", return_value=gmail_emails):
-            with patch("agent.assistant.outlook.get_recent_emails") as mock_outlook:
-                result = _dispatch_tool("get_emails", {"source": "gmail"})
-        mock_outlook.assert_not_called()
+            result = _dispatch_tool("get_emails", {})
         assert len(result) == 1
+        assert result[0]["subject"] == "Gmail msg"
 
-    def test_get_calendar_both(self):
+    def test_get_calendar_events(self):
         gcal_events = [{"title": "Standup"}]
-        outlook_events = [{"title": "1:1"}]
         with patch("agent.assistant.gcal.get_todays_events", return_value=gcal_events):
-            with patch("agent.assistant.outlook.get_todays_events", return_value=outlook_events):
-                result = _dispatch_tool("get_calendar_events", {"source": "both"})
-        assert len(result) == 2
+            result = _dispatch_tool("get_calendar_events", {})
+        assert len(result) == 1
 
     def test_get_news(self):
         headlines = [{"title": "Breaking", "source": "bloomberg"}]
