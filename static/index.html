@@ -73,7 +73,24 @@
       width: 0;
       min-width: 0;
       opacity: 0;
+      overflow: hidden;
       pointer-events: none;
+    }
+
+    /* On narrow viewports, sidebar defaults to collapsed and overlays the chat */
+    @media (max-width: 600px) {
+      #sidebar {
+        position: absolute;
+        top: 57px; /* header height */
+        left: 0;
+        bottom: 0;
+        z-index: 50;
+        box-shadow: 4px 0 16px rgba(0,0,0,0.6);
+      }
+      #sidebar:not(.collapsed) {
+        width: 220px;
+        min-width: 220px;
+      }
     }
 
     .sidebar-section {
@@ -571,7 +588,8 @@
   // --- Sidebar ---
   function initSidebar() {
     const saved = localStorage.getItem(SIDEBAR_KEY);
-    sidebarOpen = saved === null ? true : saved === 'true';
+    const isMobile = window.innerWidth <= 600;
+    sidebarOpen = saved === null ? !isMobile : saved === 'true';
     applySidebarState();
   }
 
