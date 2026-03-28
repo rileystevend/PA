@@ -18,8 +18,6 @@ from pathlib import Path
 import feedparser
 import httpx
 
-from integrations import statesman_auth
-
 logger = logging.getLogger(__name__)
 
 CACHE_DIR = Path.home() / ".pa" / "cache"
@@ -30,8 +28,6 @@ FEEDS = {
     "bloomberg": "https://feeds.bloomberg.com/markets/news.rss",
     "techcrunch": "https://techcrunch.com/feed/",
 }
-
-STATESMAN_URL = "https://www.statesman.com/arcio/rss/"
 
 MAX_ARTICLES_PER_SOURCE = 10
 
@@ -55,20 +51,6 @@ def get_headlines() -> list[dict]:
         except Exception as e:
             logger.warning("News feed %s failed: %s", source, e)
             all_articles.append({"source": source, "error": str(e)})
-
-    # Statesman requires session auth
-    try:
-        session = statesman_auth.get_session()
-        resp = session.get(STATESMAN_URL, timeout=10)
-        resp.raise_for_status()
-        feed = feedparser.parse(resp.text)
-        for article in _parse_entries(feed.entries, "statesman")[:MAX_ARTICLES_PER_SOURCE]:
-            if article["url"] not in seen_urls:
-                seen_urls.add(article["url"])
-                all_articles.append(article)
-    except Exception as e:
-        logger.warning("News feed statesman failed: %s", e)
-        all_articles.append({"source": "statesman", "error": str(e)})
 
     return all_articles
 
