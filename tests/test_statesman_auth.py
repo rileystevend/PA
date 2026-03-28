@@ -15,61 +15,53 @@ def reset_session():
 
 
 class TestGetSession:
-    def test_logs_in_on_first_call(self, monkeypatch):
-        monkeypatch.setenv("STATESMAN_EMAIL", "test@test.com")
-        monkeypatch.setenv("STATESMAN_PASSWORD", "pass")
+    def test_builds_client_on_first_call(self, monkeypatch):
+        monkeypatch.setenv("STATESMAN_COOKIE_HNPAUTHS", "abc123")
         mock_client = MagicMock()
-        with patch.object(statesman_auth, "_login", return_value=mock_client) as mock_login:
+        with patch.object(statesman_auth, "_build_client", return_value=mock_client) as mock_build:
             with patch.object(statesman_auth, "_is_alive", return_value=True):
-                # First call: no existing session → login
                 result = statesman_auth.get_session()
-        mock_login.assert_called_once()
+        mock_build.assert_called_once()
         assert result is mock_client
 
     def test_reuses_alive_session(self, monkeypatch):
-        monkeypatch.setenv("STATESMAN_EMAIL", "test@test.com")
-        monkeypatch.setenv("STATESMAN_PASSWORD", "pass")
+        monkeypatch.setenv("STATESMAN_COOKIE_HNPAUTHS", "abc123")
         existing = MagicMock()
         statesman_auth._session_client = existing
         with patch.object(statesman_auth, "_is_alive", return_value=True):
-            with patch.object(statesman_auth, "_login") as mock_login:
+            with patch.object(statesman_auth, "_build_client") as mock_build:
                 result = statesman_auth.get_session()
-        mock_login.assert_not_called()
+        mock_build.assert_not_called()
         assert result is existing
 
-    def test_re_logins_when_session_dead(self, monkeypatch):
-        monkeypatch.setenv("STATESMAN_EMAIL", "test@test.com")
-        monkeypatch.setenv("STATESMAN_PASSWORD", "pass")
+    def test_rebuilds_when_session_dead(self, monkeypatch):
+        monkeypatch.setenv("STATESMAN_COOKIE_HNPAUTHS", "abc123")
         old_client = MagicMock()
         new_client = MagicMock()
         statesman_auth._session_client = old_client
         with patch.object(statesman_auth, "_is_alive", return_value=False):
-            with patch.object(statesman_auth, "_login", return_value=new_client):
+            with patch.object(statesman_auth, "_build_client", return_value=new_client):
                 result = statesman_auth.get_session()
         assert result is new_client
 
 
-class TestLogin:
-    def test_raises_when_credentials_missing(self, monkeypatch):
-        monkeypatch.delenv("STATESMAN_EMAIL", raising=False)
-        monkeypatch.delenv("STATESMAN_PASSWORD", raising=False)
-        with pytest.raises(RuntimeError, match="STATESMAN_EMAIL"):
-            statesman_auth._login()
+class TestBuildClient:
+    def test_raises_when_no_cookies(self, monkeypatch):
+        for name in statesman_auth._COOKIE_NAMES:
+            monkeypatch.delenv(f"STATESMAN_COOKIE_{name.upper()}", raising=False)
+        with pytest.raises(RuntimeError, match="No Statesman cookies found"):
+            statesman_auth._build_client()
 
-    def test_raises_on_401(self, monkeypatch):
-        import httpx
-        monkeypatch.setenv("STATESMAN_EMAIL", "bad@bad.com")
-        monkeypatch.setenv("STATESMAN_PASSWORD", "wrong")
-        mock_resp = MagicMock()
-        mock_resp.status_code = 401
-        mock_resp.raise_for_status.side_effect = httpx.HTTPStatusError(
-            "401", request=MagicMock(), response=mock_resp
-        )
-        mock_client = MagicMock()
-        mock_client.post.return_value = mock_resp
-        with patch("integrations.statesman_auth.httpx.Client", return_value=mock_client):
-            with pytest.raises(RuntimeError, match="Statesman login failed"):
-                statesman_auth._login()
+    def test_builds_client_with_cookies(self, monkeypatch):
+        monkeypatch.setenv("STATESMAN_COOKIE_HNPAUTHS", "token123")
+        monkeypatch.setenv("STATESMAN_COOKIE_HNPAUTHP", "profile456")
+        with patch("integrations.statesman_auth.httpx.Client") as mock_cls:
+            mock_cls.return_value = MagicMock()
+            client = statesman_auth._build_client()
+        mock_cls.assert_called_once()
+        call_kwargs = mock_cls.call_args.kwargs
+        assert call_kwargs["cookies"]["hnpauths"] == "token123"
+        assert call_kwargs["cookies"]["hnpauthp"] == "profile456"
 
 
 class TestInvalidate:

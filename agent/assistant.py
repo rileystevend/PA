@@ -7,7 +7,8 @@ Mode 1 (Morning Briefing):
 
 Mode 2 (Conversational):
   Standard agentic tool-use loop. Claude decides which tools to call.
-  Independent tools dispatched concurrently. Streams final response.
+  Independent tools dispatched concurrently. Each turn uses a single streaming
+  call — chunks collected in thread, yielded on final turn. No double API calls.
 """
 
 import asyncio
@@ -37,14 +38,20 @@ def is_briefing_intent(message: str) -> bool:
 async def stream_response(message: str, history: list = None) -> AsyncGenerator[str, None]:
     """
     Main entry point. Detects intent and routes to the appropriate mode.
-    Yields SSE-formatted strings.
+    Yields SSE-formatted strings. Errors are surfaced as SSE error events
+    so the frontend can display them instead of hanging.
     """
-    if is_briefing_intent(message):
-        async for chunk in _stream_briefing():
-            yield chunk
-    else:
-        async for chunk in _stream_conversational(message, history or []):
-            yield chunk
+    try:
+        if is_briefing_intent(message):
+            async for chunk in _stream_briefing():
+                yield chunk
+        else:
+            async for chunk in _stream_conversational(message, history or []):
+                yield chunk
+    except Exception as e:
+        logger.exception("stream_response error")
+        yield f"data: {json.dumps({'error': str(e)})}\n\n"
+        yield "data: [DONE]\n\n"
 
 
 # ---------------------------------------------------------------------------
@@ -107,18 +114,27 @@ async def _stream_conversational(message: str, history: list = None) -> AsyncGen
     """
     Agentic loop: Claude calls tools, we dispatch them (in parallel when independent),
     feed results back, repeat until Claude returns plain text.
+    Each turn uses a single streaming call — chunks are collected in a thread and
+    yielded on the final turn. No second API call is made for the final response.
     history is a list of {"role": "user"|"assistant", "content": "..."} dicts.
     """
     messages = list(history or []) + [{"role": "user", "content": message}]
 
     while True:
-        # Non-streaming call to get tool_use blocks
-        response = client.messages.create(
-            model=MODEL,
-            max_tokens=4096,
-            tools=TOOLS,
-            messages=messages,
-        )
+        def _run_stream():
+            text_chunks = []
+            with client.messages.stream(
+                model=MODEL,
+                max_tokens=4096,
+                tools=TOOLS,
+                messages=messages,
+            ) as stream:
+                for text in stream.text_stream:
+                    text_chunks.append(text)
+                final_message = stream.get_final_message()
+            return text_chunks, final_message
+
+        text_chunks, response = await asyncio.to_thread(_run_stream)
 
         if response.stop_reason == "tool_use":
             tool_calls = [b for b in response.content if b.type == "tool_use"]
@@ -148,49 +164,21 @@ async def _stream_conversational(message: str, history: list = None) -> AsyncGen
             messages.append({"role": "user", "content": result_blocks})
 
         else:
-            # Final text response — stream it
-            text = "".join(
-                b.text for b in response.content if hasattr(b, "text")
-            )
-            # Stream word by word to simulate streaming (real streaming below)
-            async for chunk in _stream_claude_from_messages(messages):
-                yield chunk
+            # Final response — yield the chunks already collected from the stream
+            for chunk in text_chunks:
+                yield f"data: {json.dumps({'text': chunk})}\n\n"
+            yield "data: [DONE]\n\n"
             return
 
 
 async def _stream_claude(prompt: str) -> AsyncGenerator[str, None]:
     """Stream a single Claude message and yield SSE chunks."""
-    loop = asyncio.get_event_loop()
-
     def _run():
         chunks = []
         with client.messages.stream(
             model=MODEL,
             max_tokens=4096,
             messages=[{"role": "user", "content": prompt}],
-        ) as stream:
-            for text in stream.text_stream:
-                chunks.append(text)
-        return chunks
-
-    chunks = await asyncio.to_thread(_run)
-    for chunk in chunks:
-        yield f"data: {json.dumps({'text': chunk})}\n\n"
-    yield "data: [DONE]\n\n"
-
-
-async def _stream_claude_from_messages(
-    messages: list,
-) -> AsyncGenerator[str, None]:
-    """Stream Claude's response from a full messages list."""
-
-    def _run():
-        chunks = []
-        with client.messages.stream(
-            model=MODEL,
-            max_tokens=4096,
-            tools=TOOLS,
-            messages=messages,
         ) as stream:
             for text in stream.text_stream:
                 chunks.append(text)
