@@ -222,11 +222,13 @@ Both auth modules call `token_store.refresh()` when `is_expired()` returns True.
 - Library: `feedparser`, `httpx`
 - Sources:
   - Google News Austin: `https://news.google.com/rss/search?q=Austin+Texas&hl=en-US&gl=US&ceid=US:en`
+  - KXAN Austin: `https://www.kxan.com/feed/` (local TV news — original Austin reporting)
   - Bloomberg: `https://feeds.bloomberg.com/markets/news.rss`
   - TechCrunch: `https://techcrunch.com/feed/`
 - Cache 15 minutes in memory
 - Deduplicate by URL across all sources
 - If one feed fails, return the others (partial result, not an error)
+- Stale cache note: if you see `~/.pa/cache/news_statesman.json`, it's safe to delete — `rm -f ~/.pa/cache/news_statesman.json`
 
 ## What Claude Should Know
 

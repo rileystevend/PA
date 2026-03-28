@@ -146,6 +146,34 @@
 
 ---
 
+### Add tool dispatch logging
+
+**What:** Add `logger.debug("tool dispatch: %s %s", name, inputs)` at the top of `_dispatch_tool()`.
+
+**Why:** When a tool call fails, the chat shows "Error: ..." but logs have no context about which tool was called, with what arguments, or what triggered it. Debugging `send_email` failures requires this.
+
+**Context:** `agent/assistant.py::_dispatch_tool`. One line. Use `logger.debug` so it's off by default in production but available when needed.
+
+**Effort:** S
+**Priority:** P2
+**Depends on:** None
+
+---
+
+### Clean up stale news_statesman.json cache file
+
+**What:** After removing the Statesman integration, delete `~/.pa/cache/news_statesman.json` if it exists. Mention in CLAUDE.md that this file is safe to delete manually.
+
+**Why:** The file is harmless but confusing — it looks like an active cache entry when browsing the cache directory.
+
+**Context:** `~/.pa/cache/news_statesman.json`. Delete with `rm -f ~/.pa/cache/news_statesman.json`.
+
+**Effort:** S
+**Priority:** P3
+**Depends on:** Statesman removal (app-optimization-v1)
+
+---
+
 ## Completed
 
 _(none yet)_

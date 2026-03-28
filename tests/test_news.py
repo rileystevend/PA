@@ -50,6 +50,8 @@ class TestGetHeadlines:
                 return _make_http_resp(_make_feed_xml("bloomberg"))
             if "techcrunch" in url:
                 return _make_http_resp(_make_feed_xml("techcrunch"))
+            if "kxan" in url:
+                return _make_http_resp(_make_feed_xml("kxan"))
             return _make_http_resp(_make_feed_xml("austin"))
 
         with patch("integrations.news.httpx.get", side_effect=fake_httpx_get):
@@ -59,6 +61,7 @@ class TestGetHeadlines:
         assert "bloomberg" in sources
         assert "techcrunch" in sources
         assert "austin" in sources
+        assert "kxan" in sources
 
     def test_returns_partial_when_one_source_fails(self, monkeypatch):
         def fake_httpx_get(url, **kwargs):
