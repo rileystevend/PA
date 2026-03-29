@@ -229,3 +229,18 @@ class TestSearchRentals:
 
         # Should have re-fetched, not returned stale data
         assert not any(r.get("title") == "Stale" for r in results)
+
+    def test_all_areas_fail_returns_fallback_note(self):
+        """When every area fetch fails, return a sentinel with fallback_note."""
+        with patch("integrations.daft.httpx.Client") as mock_client_cls:
+            mock_client = MagicMock()
+            mock_client.__enter__ = MagicMock(return_value=mock_client)
+            mock_client.__exit__ = MagicMock(return_value=False)
+            mock_client.get.side_effect = Exception("Network error")
+            mock_client_cls.return_value = mock_client
+
+            results = daft.search_rentals()
+
+        assert len(results) == 1
+        assert "fallback_note" in results[0]
+        assert "could not be fetched" in results[0]["fallback_note"]
