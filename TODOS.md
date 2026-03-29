@@ -46,20 +46,6 @@
 
 ---
 
-### Add iteration ceiling to tool-use loop
-
-**What:** Cap `_stream_conversational`'s `while True:` loop at N iterations (e.g. 10).
-
-**Why:** A buggy or adversarially crafted tool response that keeps triggering tool calls loops forever, consuming Claude API credits and holding SSE connections open indefinitely.
-
-**Context:** `agent/assistant.py::_stream_conversational`. Add `iteration = 0` before the loop, increment each turn, and `if iteration > 10: yield error event; return`.
-
-**Effort:** S
-**Priority:** P1
-**Depends on:** None
-
----
-
 ### Add pagination to Google Calendar calendarList fetch
 
 **What:** Handle `nextPageToken` in `gcal.get_todays_events()`.
@@ -95,20 +81,6 @@
 **Why:** `auth/google.py` saves `"expiry": None`. `token_store.is_expired()` sees `None` and returns `True`, triggering a token refresh on every single API call until the first refresh succeeds.
 
 **Context:** `auth/google.py::google_callback`. Extract the actual expiry from the credentials object: `creds.expiry.isoformat()` if available, else `None`.
-
-**Effort:** S
-**Priority:** P1
-**Depends on:** None
-
----
-
-### Fix error objects mixed into article list in news.py
-
-**What:** Return error notices separately from articles, or filter them out before returning to callers.
-
-**Why:** When a feed fails, an `{"source": "bloomberg", "error": "..."}` dict is appended to `all_articles`. The `get_news` source filter returns these as if they were headlines — Claude gets wrong data silently.
-
-**Context:** `integrations/news.py::get_headlines`. Return a `(articles, errors)` tuple, or use a dedicated error key that callers can check, or simply exclude error dicts from the returned list and log the failure separately.
 
 **Effort:** S
 **Priority:** P1
@@ -176,4 +148,8 @@
 
 ## Completed
 
-_(none yet)_
+### Add iteration ceiling to tool-use loop
+**Completed:** app-optimization-v1 (2026-03-29)
+
+### Fix error objects mixed into article list in news.py
+**Completed:** app-optimization-v1 (2026-03-29)
