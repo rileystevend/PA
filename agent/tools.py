@@ -39,14 +39,16 @@ TOOLS = [
     {
         "name": "get_news",
         "description": (
-            "Fetch top headlines from Austin American-Statesman, Bloomberg, and TechCrunch."
+            "Fetch top headlines from Google News (Austin, TX), KXAN (local Austin TV news), Bloomberg, and TechCrunch. "
+            "Each result has title, url, source, and published fields. "
+            "When presenting headlines to the user, format each as a markdown link: [title](url)."
         ),
         "input_schema": {
             "type": "object",
             "properties": {
                 "source": {
                     "type": "string",
-                    "enum": ["statesman", "bloomberg", "techcrunch", "all"],
+                    "enum": ["austin", "kxan", "bloomberg", "techcrunch", "all"],
                     "description": "Which news source to fetch. Default: all.",
                 }
             },
