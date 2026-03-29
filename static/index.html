@@ -679,7 +679,7 @@
     'conflicts': "Review my calendar for the next week and flag any scheduling issues — overlapping events, back-to-back meetings with no buffer, or events that seem to conflict with each other. Let me know what the conflicts are and suggest how I might resolve them.",
     'tech-news': "Give me a quick recap of the latest news in AI and cloud technology. Focus on significant product launches, major research breakthroughs, or important industry moves from the past day or two.",
     'finance-news': "Give me a quick financial news recap — what's happening in the markets, any notable economic data, or major corporate news from the past day or two.",
-    'local-news': "What's going on in Austin? Give me a quick summary of the top local headlines from the Statesman or other Austin news sources.",
+    'local-news': "What's going on in Austin? Give me a quick summary of the top local headlines from Google News Austin and KXAN.",
     'ireland-rentals': "Search Daft.ie for rental apartments near Dublin — Bray, Greystones, Dún Laoghaire, and Sandyford. 2+ bedrooms, max €2,800/month. Show me what's available with prices, beds, and links.",
   };
 
@@ -887,7 +887,10 @@
       });
 
       if (!resp.ok) {
-        contentEl.innerHTML = `<p style="color:#e05050">Error ${resp.status}: ${resp.statusText}</p>`;
+        const errP = document.createElement('p');
+        errP.style.color = '#e05050';
+        errP.textContent = `Error ${resp.status}: ${resp.statusText}`;
+        contentEl.replaceChildren(errP);
         return;
       }
 
@@ -931,7 +934,10 @@
         }
       }
     } catch (err) {
-      contentEl.innerHTML = `<p style="color:#e05050">Connection error: ${err.message}</p>`;
+      const errP2 = document.createElement('p');
+      errP2.style.color = '#e05050';
+      errP2.textContent = `Connection error: ${err.message}`;
+      contentEl.replaceChildren(errP2);
     } finally {
       cursor.remove();
       // Persist raw markdown so history sent back to Claude is never degraded
