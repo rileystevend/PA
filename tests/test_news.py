@@ -75,8 +75,8 @@ class TestGetHeadlines:
             results = news.get_headlines()
 
         assert any(r.get("source") in ("bloomberg", "techcrunch") for r in results)
-        error_items = [r for r in results if "error" in r]
-        assert len(error_items) >= 1
+        # Failed feeds are skipped cleanly — no error dicts injected into results
+        assert all("error" not in r for r in results)
 
     def test_deduplicates_by_url(self, monkeypatch):
         # All feeds return the same articles — only unique URLs should appear
