@@ -120,8 +120,15 @@ async def _stream_conversational(message: str, history: list = None) -> AsyncGen
     history is a list of {"role": "user"|"assistant", "content": "..."} dicts.
     """
     messages = list(history or []) + [{"role": "user", "content": message}]
+    iteration = 0
 
     while True:
+        iteration += 1
+        if iteration > 10:
+            yield f"data: {json.dumps({'error': 'Tool loop exceeded maximum iterations'})}\n\n"
+            yield "data: [DONE]\n\n"
+            return
+
         async with client.messages.stream(
             model=MODEL,
             max_tokens=4096,
@@ -181,7 +188,7 @@ async def _stream_claude(prompt: str) -> AsyncGenerator[str, None]:
 # ---------------------------------------------------------------------------
 
 def _dispatch_tool(name: str, inputs: dict) -> Any:
-    source = inputs.get("source", "both")
+    source = inputs.get("source", "all")
 
     if name == "get_emails":
         return gmail.get_recent_emails()

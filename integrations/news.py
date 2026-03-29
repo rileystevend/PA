@@ -52,7 +52,6 @@ def get_headlines() -> list[dict]:
                     all_articles.append(article)
         except Exception as e:
             logger.warning("News feed %s failed: %s", source, e)
-            all_articles.append({"source": source, "error": str(e)})
 
     return all_articles
 
