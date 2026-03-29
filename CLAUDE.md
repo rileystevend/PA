@@ -53,7 +53,8 @@ PA/
 │   ├── gcal.py                  # Google Calendar read
 │   ├── outlook.py               # Outlook mail + calendar via Microsoft Graph
 │   ├── weather.py               # OpenWeatherMap current + forecast (10 min cache)
-│   └── news.py                  # RSS feed reader (feedparser), 15 min cache
+│   ├── news.py                  # RSS feed reader (feedparser), 15 min cache
+│   └── daft.py                  # Daft.ie rental search (scrapes __NEXT_DATA__), 30 min cache
 ├── auth/
 │   ├── token_store.py           # Shared: load/save/is_expired for OAuth tokens
 │   ├── google.py                # Google OAuth2 flow (calls token_store)
@@ -71,6 +72,7 @@ PA/
     ├── test_outlook.py
     ├── test_weather.py
     ├── test_news.py
+    ├── test_daft.py
     └── test_token_store.py
 ```
 
@@ -229,6 +231,15 @@ Both auth modules call `token_store.refresh()` when `is_expired()` returns True.
 - Deduplicate by URL across all sources
 - If one feed fails, return the others (partial result, not an error)
 - Stale cache note: if you see `~/.pa/cache/news_statesman.json`, it's safe to delete — `rm -f ~/.pa/cache/news_statesman.json`
+
+### Ireland Rentals (Daft.ie)
+- Library: `httpx`
+- Method: Scrapes `__NEXT_DATA__` JSON from Daft.ie Next.js server-rendered pages
+- Default areas: Bray, Greystones, Dún Laoghaire, Sandyford (Dublin/Wicklow corridor)
+- Default filters: 2+ beds, max €2,800/month
+- Cache 30 minutes in memory
+- Fallback: returns a `fallback_note` sentinel if all areas fail (site may have changed structure)
+- Tool name: `search_ireland_rentals` (params: `min_beds`, `max_price`)
 
 ## What Claude Should Know
 
