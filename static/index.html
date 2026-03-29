@@ -790,9 +790,13 @@
         const el = document.createElement('div');
         el.className = `message ${m.role}`;
         if (m.role === 'assistant') {
-          el.dataset.rawText = m.text;
+          // Detect legacy entries that stored rendered HTML instead of raw markdown.
+          // HTML entries contain tags like <h3>, <li>, <strong>; raw markdown does not.
+          const looksLikeHTML = /<(?:h[1-6]|ul|ol|li|p|div|table|strong|em|a |br)\b/i.test(m.text);
+          const rendered = looksLikeHTML ? m.text : renderMarkdown(m.text);
+          el.dataset.rawText = looksLikeHTML ? '' : m.text;
           el.innerHTML = `
-            <div class="content">${renderMarkdown(m.text)}</div>
+            <div class="content">${rendered}</div>
             <button class="copy-btn" aria-label="Copy response" onclick="copyMessage(this)">Copy</button>
           `;
         } else {
