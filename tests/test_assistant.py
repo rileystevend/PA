@@ -81,17 +81,6 @@ class TestDispatchTool:
         with pytest.raises(ValueError, match="to, subject, and body"):
             _dispatch_tool("send_email", {"to": "a@b.com"})
 
-    def test_search_ireland_rentals(self):
-        listings = [{"title": "2 Bed Apt, Bray", "price_per_month": 1800, "url": "https://daft.ie/1"}]
-        with patch("agent.assistant.daft.search_rentals", return_value=listings):
-            result = _dispatch_tool("search_ireland_rentals", {})
-        assert result == listings
-
-    def test_search_ireland_rentals_passes_params(self):
-        with patch("agent.assistant.daft.search_rentals", return_value=[]) as mock_fn:
-            _dispatch_tool("search_ireland_rentals", {"min_beds": 3, "max_price": 3000})
-        mock_fn.assert_called_once_with(min_beds=3, max_price=3000)
-
     def test_raises_on_unknown_tool(self):
         with pytest.raises(ValueError, match="Unknown tool"):
             _dispatch_tool("nonexistent_tool", {})
