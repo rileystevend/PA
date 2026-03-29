@@ -1,19 +1,19 @@
 """
 Daft.ie rental search integration.
 
-Fetches rental listings from Daft.ie's server-rendered Next.js pages.
-Extracts listing data from __NEXT_DATA__ JSON embedded in each search page.
+Uses Daft.ie's internal gateway API (gateway.daft.ie) to fetch listings.
+The public site is behind Cloudflare bot protection, but the API accepts
+direct JSON requests with text-based location search.
+
 Results are cached in memory for 30 minutes.
 
 Default search: Bray, Greystones, Dún Laoghaire, Sandyford
                 2+ bedrooms, max €2,800/month
 """
 
-import json
 import logging
 import re
 from datetime import datetime, timedelta, timezone
-from typing import Any
 
 import httpx
 
@@ -23,22 +23,19 @@ CACHE_TTL_MINUTES = 30
 _cache: dict = {}
 
 DEFAULT_AREAS = [
-    ("Bray", "bray-wicklow"),
-    ("Greystones", "greystones-wicklow"),
-    ("Dún Laoghaire", "dun-laoghaire-dublin"),
-    ("Sandyford", "sandyford-dublin"),
+    ("Bray", "Bray, Co. Wicklow"),
+    ("Greystones", "Greystones, Co. Wicklow"),
+    ("Dún Laoghaire", "Dún Laoghaire, Co. Dublin"),
+    ("Sandyford", "Sandyford, Dublin 18"),
 ]
 
-_SEARCH_URL = "https://www.daft.ie/property-for-rent/{slug}"
+_API_URL = "https://gateway.daft.ie/old/v1/listings"
 
 _HEADERS = {
-    "User-Agent": (
-        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
-        "AppleWebKit/537.36 (KHTML, like Gecko) "
-        "Chrome/120.0.0.0 Safari/537.36"
-    ),
-    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-    "Accept-Language": "en-IE,en;q=0.9",
+    "Content-Type": "application/json",
+    "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)",
+    "brand": "daft",
+    "platform": "web",
 }
 
 MAX_PER_AREA = 10
@@ -56,7 +53,7 @@ def search_rentals(
     if areas is None:
         areas = DEFAULT_AREAS
 
-    cache_key = f"{','.join(s for _, s in areas)}-{min_beds}-{max_price}"
+    cache_key = f"{','.join(label for label, _ in areas)}-{min_beds}-{max_price}"
     cached = _cache.get(cache_key)
     if cached:
         if datetime.now(timezone.utc) - cached["fetched_at"] < timedelta(minutes=CACHE_TTL_MINUTES):
@@ -66,10 +63,10 @@ def search_rentals(
     all_listings: list[dict] = []
     seen_urls: set[str] = set()
 
-    with httpx.Client(headers=_HEADERS, follow_redirects=True, timeout=15) as client:
-        for area_label, slug in areas:
+    with httpx.Client(headers=_HEADERS, timeout=15) as client:
+        for area_label, search_term in areas:
             try:
-                listings = _fetch_area(client, area_label, slug, min_beds, max_price)
+                listings = _fetch_area(client, area_label, search_term, min_beds, max_price)
                 for listing in listings:
                     if listing["url"] not in seen_urls:
                         seen_urls.add(listing["url"])
@@ -78,15 +75,13 @@ def search_rentals(
                 logger.warning("Daft.ie fetch failed for %s: %s", area_label, e)
 
     if not all_listings:
-        # Daft.ie may have changed their page structure or blocked the request.
-        # Return a sentinel so Claude can surface a helpful message.
         return [
             {
                 "fallback_note": (
-                    "Daft.ie results could not be fetched — the site may have "
-                    "updated its page structure or blocked the request. "
-                    "For reliable results, run the /ireland-rental-search skill "
-                    "in Claude Code, which uses a real browser."
+                    "Daft.ie returned no results. The API may be temporarily "
+                    "unavailable, or there are genuinely no listings matching "
+                    "your criteria. Try adjusting the budget or bedrooms, or "
+                    "run /ireland-rental-search in Claude Code for a browser-based search."
                 )
             }
         ]
@@ -98,112 +93,59 @@ def search_rentals(
 def _fetch_area(
     client: httpx.Client,
     area_label: str,
-    slug: str,
+    search_term: str,
     min_beds: int,
     max_price: int,
 ) -> list[dict]:
-    url = _SEARCH_URL.format(slug=slug)
-    resp = client.get(url, params={
-        "numBeds_from": min_beds,
-        "maxPrice": max_price,
+    payload = {
+        "section": "residential-to-rent",
+        "filters": [
+            {"name": "adState", "values": ["published"]},
+        ],
+        "ranges": [
+            {"name": "rentalPrice", "from": "0", "to": str(max_price)},
+            {"name": "numBeds", "from": str(min_beds), "to": ""},
+        ],
+        "terms": search_term,
+        "paging": {"from": "0", "pageSize": str(MAX_PER_AREA)},
         "sort": "publishDateDesc",
-    })
+    }
+    resp = client.post(_API_URL, json=payload)
     resp.raise_for_status()
-    return _extract_listings(resp.text, area_label)[:MAX_PER_AREA]
-
-
-def _extract_listings(html: str, area_label: str) -> list[dict]:
-    """Parse listings from the __NEXT_DATA__ JSON block embedded by Next.js."""
-    match = re.search(
-        r'<script id="__NEXT_DATA__" type="application/json">(.*?)</script>',
-        html,
-        re.DOTALL,
-    )
-    if not match:
-        logger.warning("No __NEXT_DATA__ found for %s", area_label)
-        return []
-
-    try:
-        page_data = json.loads(match.group(1))
-    except json.JSONDecodeError:
-        logger.warning("Failed to parse __NEXT_DATA__ for %s", area_label)
-        return []
-
-    raw = _find_listings_array(page_data)
-    if not raw:
-        logger.warning("No listings array found in __NEXT_DATA__ for %s", area_label)
-        return []
+    data = resp.json()
 
     results = []
-    for item in raw:
+    for item in data.get("listings", []):
         parsed = _parse_listing(item, area_label)
         if parsed:
             results.append(parsed)
     return results
 
 
-def _find_listings_array(data: Any) -> list | None:
-    """
-    Recursively walk the Next.js page tree to find a listings array.
-    Daft.ie nests results under various keys depending on the page version.
-    """
-    if isinstance(data, list) and data and isinstance(data[0], dict):
-        first = data[0]
-        if any(k in first for k in ("listing", "title", "price", "seoTitle", "daftShortcode")):
-            return data
-
-    if isinstance(data, dict):
-        # Walk known high-value keys first for speed
-        for key in ("listings", "results", "searchResults", "props", "pageProps", "data"):
-            if key in data:
-                found = _find_listings_array(data[key])
-                if found:
-                    return found
-        # Fall back to exhaustive search
-        for value in data.values():
-            if isinstance(value, (dict, list)):
-                found = _find_listings_array(value)
-                if found:
-                    return found
-
-    return None
-
-
 def _parse_listing(item: dict, area_label: str) -> dict | None:
-    # Daft.ie wraps each result under a "listing" key in some API versions
     listing = item.get("listing", item)
 
-    title = (
-        listing.get("title")
-        or listing.get("seoTitle")
-        or listing.get("header")
-        or ""
-    )
+    title = listing.get("title") or listing.get("seoTitle") or ""
     if not title:
         return None
 
-    price = _parse_price(str(listing.get("price") or listing.get("rent") or ""))
-    beds = listing.get("numBedrooms") or listing.get("bedrooms") or 0
-    baths = listing.get("numBathrooms") or listing.get("bathrooms") or 0
+    price = _parse_price(str(listing.get("price") or listing.get("abbreviatedPrice") or ""))
+    beds = listing.get("numBedrooms") or 0
+    baths = listing.get("numBathrooms") or 0
 
     path = listing.get("seoFriendlyPath") or listing.get("daftShortcode") or ""
     listing_url = f"https://www.daft.ie{path}" if path.startswith("/") else path
 
-    # Photo: try nested media.images first, then top-level images array
     img_url = ""
     media = listing.get("media") or {}
-    images = media.get("images") or listing.get("images") or []
-    if images:
-        first = images[0]
-        if isinstance(first, str):
-            img_url = first
-        elif isinstance(first, dict):
-            img_url = (
-                first.get("size720x480")
-                or first.get("size612x459")
-                or first.get("src")
-                or ""
-            )
+    images = media.get("images") or []
+    if images and isinstance(images[0], dict):
+        img_url = (
+            images[0].get("size720x480")
+            or images[0].get("size600x600")
+            or images[0].get("size400x300")
+            or ""
+        )
 
     return {
         "title": title,

@@ -1,4 +1,4 @@
-"""Tests for integrations/daft.py"""
+"""Tests for integrations/daft.py (gateway API approach)"""
 
 import json
 from datetime import datetime, timedelta, timezone
@@ -13,43 +13,37 @@ from integrations import daft
 # Helpers
 # ---------------------------------------------------------------------------
 
-def _make_next_data(listings: list[dict]) -> str:
-    """Wrap a listings list in a minimal __NEXT_DATA__ HTML page."""
-    page = {
-        "props": {
-            "pageProps": {
-                "listings": listings
-            }
-        }
+def _api_response(listings: list[dict], total: int | None = None) -> dict:
+    """Build a Daft.ie gateway API response."""
+    return {
+        "listings": listings,
+        "paging": {"totalResults": total if total is not None else len(listings)},
     }
-    return (
-        '<html><head>'
-        f'<script id="__NEXT_DATA__" type="application/json">{json.dumps(page)}</script>'
-        '</head><body></body></html>'
-    )
 
 
-def _listing(
+def _raw_listing(
     title="2 Bed Apartment, Bray",
     price="€2,100 per month",
-    beds=2,
-    baths=1,
+    beds="2 Bed",
+    baths="1 Bath",
     path="/for-rent/apartment-bray-123",
-    img="https://media.daft.ie/img/123.jpg",
+    img_url="https://media.daft.ie/img/123.jpg",
 ):
     return {
-        "title": title,
-        "price": price,
-        "numBedrooms": beds,
-        "numBathrooms": baths,
-        "seoFriendlyPath": path,
-        "media": {"images": [{"size720x480": img}]},
+        "listing": {
+            "title": title,
+            "price": price,
+            "numBedrooms": beds,
+            "numBathrooms": baths,
+            "seoFriendlyPath": path,
+            "media": {"images": [{"size720x480": img_url}]},
+        }
     }
 
 
-def _mock_resp(html: str):
+def _mock_resp(data: dict):
     resp = MagicMock()
-    resp.text = html
+    resp.json.return_value = data
     resp.raise_for_status = MagicMock()
     return resp
 
@@ -71,6 +65,9 @@ class TestParsePrice:
     def test_no_digits(self):
         assert daft._parse_price("POA") == 0
 
+    def test_from_prefix(self):
+        assert daft._parse_price("From €2,150 per month") == 2150
+
 
 # ---------------------------------------------------------------------------
 # _parse_listing
@@ -78,57 +75,28 @@ class TestParsePrice:
 
 class TestParseListing:
     def test_parses_standard_listing(self):
-        item = _listing()
+        item = _raw_listing()
         result = daft._parse_listing(item, "Bray")
         assert result["title"] == "2 Bed Apartment, Bray"
         assert result["price_per_month"] == 2100
-        assert result["beds"] == 2
-        assert result["baths"] == 1
+        assert result["beds"] == "2 Bed"
+        assert result["baths"] == "1 Bath"
         assert result["url"] == "https://www.daft.ie/for-rent/apartment-bray-123"
         assert result["area"] == "Bray"
         assert "media.daft.ie" in result["img"]
 
-    def test_nested_listing_key(self):
-        item = {"listing": _listing(title="Nested Listing")}
-        result = daft._parse_listing(item, "Bray")
-        assert result["title"] == "Nested Listing"
-
     def test_missing_title_returns_none(self):
-        assert daft._parse_listing({}, "Bray") is None
+        assert daft._parse_listing({"listing": {}}, "Bray") is None
 
     def test_url_with_full_href(self):
-        item = _listing(path="https://www.daft.ie/already-full")
+        item = _raw_listing(path="https://www.daft.ie/already-full")
         result = daft._parse_listing(item, "Bray")
         assert result["url"] == "https://www.daft.ie/already-full"
 
-
-# ---------------------------------------------------------------------------
-# _extract_listings
-# ---------------------------------------------------------------------------
-
-class TestExtractListings:
-    def test_extracts_from_valid_html(self):
-        html = _make_next_data([_listing(title="Test Property")])
-        results = daft._extract_listings(html, "Bray")
-        assert len(results) == 1
-        assert results[0]["title"] == "Test Property"
-
-    def test_returns_empty_when_no_next_data(self):
-        results = daft._extract_listings("<html></html>", "Bray")
-        assert results == []
-
-    def test_returns_empty_on_invalid_json(self):
-        html = '<script id="__NEXT_DATA__" type="application/json">{bad json}</script>'
-        results = daft._extract_listings(html, "Bray")
-        assert results == []
-
-    def test_caps_at_max_per_area(self):
-        listings = [_listing(title=f"Listing {i}", path=f"/for-rent/{i}") for i in range(20)]
-        html = _make_next_data(listings)
-        results = daft._extract_listings(html, "Bray")
-        # _extract_listings itself doesn't cap; _fetch_area does — but we can verify
-        # it returns all parsed valid listings
-        assert len(results) == 20
+    def test_no_images(self):
+        item = {"listing": {"title": "Test", "price": "€1,000", "media": {}}}
+        result = daft._parse_listing(item, "Bray")
+        assert result["img"] == ""
 
 
 # ---------------------------------------------------------------------------
@@ -137,56 +105,52 @@ class TestExtractListings:
 
 class TestSearchRentals:
     def setup_method(self):
-        # Clear cache between tests
         daft._cache.clear()
 
     def test_returns_listings_from_all_areas(self):
-        html = _make_next_data([_listing()])
+        api_data = _api_response([_raw_listing()])
 
         with patch("integrations.daft.httpx.Client") as mock_client_cls:
             mock_client = MagicMock()
             mock_client.__enter__ = MagicMock(return_value=mock_client)
             mock_client.__exit__ = MagicMock(return_value=False)
-            mock_client.get.return_value = _mock_resp(html)
+            mock_client.post.return_value = _mock_resp(api_data)
             mock_client_cls.return_value = mock_client
 
             results = daft.search_rentals()
 
-        # 4 areas × 1 listing each, but dedup by URL collapses identical paths
         assert len(results) >= 1
         assert results[0]["area"] in ("Bray", "Greystones", "Dún Laoghaire", "Sandyford")
 
     def test_caches_results(self):
-        html = _make_next_data([_listing()])
+        api_data = _api_response([_raw_listing()])
 
         with patch("integrations.daft.httpx.Client") as mock_client_cls:
             mock_client = MagicMock()
             mock_client.__enter__ = MagicMock(return_value=mock_client)
             mock_client.__exit__ = MagicMock(return_value=False)
-            mock_client.get.return_value = _mock_resp(html)
+            mock_client.post.return_value = _mock_resp(api_data)
             mock_client_cls.return_value = mock_client
 
             daft.search_rentals()
             daft.search_rentals()
-            # Second call should hit cache — HTTP client only constructed once
             assert mock_client_cls.call_count == 1
 
     def test_partial_failure_returns_other_areas(self):
-        good_html = _make_next_data([_listing(title="Good Listing", path="/for-rent/good")])
-
+        good_data = _api_response([_raw_listing(title="Good Listing", path="/for-rent/good")])
         call_count = [0]
 
-        def get_side_effect(url, **kwargs):
+        def post_side_effect(url, **kwargs):
             call_count[0] += 1
             if call_count[0] == 1:
                 raise Exception("Network error")
-            return _mock_resp(good_html)
+            return _mock_resp(good_data)
 
         with patch("integrations.daft.httpx.Client") as mock_client_cls:
             mock_client = MagicMock()
             mock_client.__enter__ = MagicMock(return_value=mock_client)
             mock_client.__exit__ = MagicMock(return_value=False)
-            mock_client.get.side_effect = get_side_effect
+            mock_client.post.side_effect = post_side_effect
             mock_client_cls.return_value = mock_client
 
             results = daft.search_rentals()
@@ -194,14 +158,13 @@ class TestSearchRentals:
         assert any(r["title"] == "Good Listing" for r in results)
 
     def test_deduplicates_by_url(self):
-        # Same listing URL across all areas
-        html = _make_next_data([_listing(path="/for-rent/same-url")])
+        api_data = _api_response([_raw_listing(path="/for-rent/same-url")])
 
         with patch("integrations.daft.httpx.Client") as mock_client_cls:
             mock_client = MagicMock()
             mock_client.__enter__ = MagicMock(return_value=mock_client)
             mock_client.__exit__ = MagicMock(return_value=False)
-            mock_client.get.return_value = _mock_resp(html)
+            mock_client.post.return_value = _mock_resp(api_data)
             mock_client_cls.return_value = mock_client
 
             results = daft.search_rentals()
@@ -210,10 +173,9 @@ class TestSearchRentals:
         assert len(urls) == len(set(urls))
 
     def test_cache_expires_after_ttl(self):
-        html = _make_next_data([_listing()])
+        api_data = _api_response([_raw_listing()])
 
-        # Pre-populate with expired cache entry
-        daft._cache["bray-wicklow,greystones-wicklow,dun-laoghaire-dublin,sandyford-dublin-2-2800"] = {
+        daft._cache["Bray,Greystones,Dún Laoghaire,Sandyford-2-2800"] = {
             "data": [{"title": "Stale", "url": "/stale"}],
             "fetched_at": datetime.now(timezone.utc) - timedelta(minutes=60),
         }
@@ -222,25 +184,22 @@ class TestSearchRentals:
             mock_client = MagicMock()
             mock_client.__enter__ = MagicMock(return_value=mock_client)
             mock_client.__exit__ = MagicMock(return_value=False)
-            mock_client.get.return_value = _mock_resp(html)
+            mock_client.post.return_value = _mock_resp(api_data)
             mock_client_cls.return_value = mock_client
 
             results = daft.search_rentals()
 
-        # Should have re-fetched, not returned stale data
         assert not any(r.get("title") == "Stale" for r in results)
 
     def test_all_areas_fail_returns_fallback_note(self):
-        """When every area fetch fails, return a sentinel with fallback_note."""
         with patch("integrations.daft.httpx.Client") as mock_client_cls:
             mock_client = MagicMock()
             mock_client.__enter__ = MagicMock(return_value=mock_client)
             mock_client.__exit__ = MagicMock(return_value=False)
-            mock_client.get.side_effect = Exception("Network error")
+            mock_client.post.side_effect = Exception("Network error")
             mock_client_cls.return_value = mock_client
 
             results = daft.search_rentals()
 
         assert len(results) == 1
         assert "fallback_note" in results[0]
-        assert "could not be fetched" in results[0]["fallback_note"]
