@@ -7,7 +7,8 @@ Mode 1 (Morning Briefing):
 
 Mode 2 (Conversational):
   Standard agentic tool-use loop. Claude decides which tools to call.
-  Independent tools dispatched concurrently. Streams final response.
+  Independent tools dispatched concurrently. Uses AsyncAnthropic for true
+  token-by-token streaming — no buffering, no double API calls.
 """
 
 import asyncio
@@ -19,11 +20,11 @@ from typing import Any
 import anthropic
 
 from agent.tools import TOOLS
-from integrations import gcal, gmail, news, weather
+from integrations import daft, gcal, gmail, news, weather
 
 logger = logging.getLogger(__name__)
 
-client = anthropic.Anthropic()
+client = anthropic.AsyncAnthropic()
 MODEL = "claude-sonnet-4-6"
 
 BRIEFING_KEYWORDS = {"morning briefing", "morning brief", "good morning", "briefing"}
@@ -37,14 +38,20 @@ def is_briefing_intent(message: str) -> bool:
 async def stream_response(message: str, history: list = None) -> AsyncGenerator[str, None]:
     """
     Main entry point. Detects intent and routes to the appropriate mode.
-    Yields SSE-formatted strings.
+    Yields SSE-formatted strings. Errors are surfaced as SSE error events
+    so the frontend can display them instead of hanging.
     """
-    if is_briefing_intent(message):
-        async for chunk in _stream_briefing():
-            yield chunk
-    else:
-        async for chunk in _stream_conversational(message, history or []):
-            yield chunk
+    try:
+        if is_briefing_intent(message):
+            async for chunk in _stream_briefing():
+                yield chunk
+        else:
+            async for chunk in _stream_conversational(message, history or []):
+                yield chunk
+    except Exception as e:
+        logger.exception("stream_response error")
+        yield f"data: {json.dumps({'error': str(e)})}\n\n"
+        yield "data: [DONE]\n\n"
 
 
 # ---------------------------------------------------------------------------
@@ -83,6 +90,8 @@ async def _stream_briefing() -> AsyncGenerator[str, None]:
         "Write a concise, friendly morning briefing. Lead with the weather and calendar, "
         "then highlight the most important emails (flag anything urgent), "
         "then give the top news headlines grouped by source. "
+        "For each headline, format it as a markdown link using its url field: [Title](url). "
+        "If a headline has no url, show the title as plain text. "
         "If any source was unavailable, mention it briefly. "
         "Use markdown formatting."
     )
@@ -107,18 +116,28 @@ async def _stream_conversational(message: str, history: list = None) -> AsyncGen
     """
     Agentic loop: Claude calls tools, we dispatch them (in parallel when independent),
     feed results back, repeat until Claude returns plain text.
+    Uses AsyncAnthropic for true token-by-token streaming on the final turn.
     history is a list of {"role": "user"|"assistant", "content": "..."} dicts.
     """
     messages = list(history or []) + [{"role": "user", "content": message}]
+    iteration = 0
 
     while True:
-        # Non-streaming call to get tool_use blocks
-        response = client.messages.create(
+        iteration += 1
+        if iteration > 10:
+            yield f"data: {json.dumps({'error': 'Tool loop exceeded maximum iterations'})}\n\n"
+            yield "data: [DONE]\n\n"
+            return
+
+        async with client.messages.stream(
             model=MODEL,
             max_tokens=4096,
             tools=TOOLS,
             messages=messages,
-        )
+        ) as stream:
+            async for text in stream.text_stream:
+                yield f"data: {json.dumps({'text': text})}\n\n"
+            response = await stream.get_final_message()
 
         if response.stop_reason == "tool_use":
             tool_calls = [b for b in response.content if b.type == "tool_use"]
@@ -148,57 +167,19 @@ async def _stream_conversational(message: str, history: list = None) -> AsyncGen
             messages.append({"role": "user", "content": result_blocks})
 
         else:
-            # Final text response — stream it
-            text = "".join(
-                b.text for b in response.content if hasattr(b, "text")
-            )
-            # Stream word by word to simulate streaming (real streaming below)
-            async for chunk in _stream_claude_from_messages(messages):
-                yield chunk
+            yield "data: [DONE]\n\n"
             return
 
 
 async def _stream_claude(prompt: str) -> AsyncGenerator[str, None]:
     """Stream a single Claude message and yield SSE chunks."""
-    loop = asyncio.get_event_loop()
-
-    def _run():
-        chunks = []
-        with client.messages.stream(
-            model=MODEL,
-            max_tokens=4096,
-            messages=[{"role": "user", "content": prompt}],
-        ) as stream:
-            for text in stream.text_stream:
-                chunks.append(text)
-        return chunks
-
-    chunks = await asyncio.to_thread(_run)
-    for chunk in chunks:
-        yield f"data: {json.dumps({'text': chunk})}\n\n"
-    yield "data: [DONE]\n\n"
-
-
-async def _stream_claude_from_messages(
-    messages: list,
-) -> AsyncGenerator[str, None]:
-    """Stream Claude's response from a full messages list."""
-
-    def _run():
-        chunks = []
-        with client.messages.stream(
-            model=MODEL,
-            max_tokens=4096,
-            tools=TOOLS,
-            messages=messages,
-        ) as stream:
-            for text in stream.text_stream:
-                chunks.append(text)
-        return chunks
-
-    chunks = await asyncio.to_thread(_run)
-    for chunk in chunks:
-        yield f"data: {json.dumps({'text': chunk})}\n\n"
+    async with client.messages.stream(
+        model=MODEL,
+        max_tokens=4096,
+        messages=[{"role": "user", "content": prompt}],
+    ) as stream:
+        async for text in stream.text_stream:
+            yield f"data: {json.dumps({'text': text})}\n\n"
     yield "data: [DONE]\n\n"
 
 
@@ -207,7 +188,7 @@ async def _stream_claude_from_messages(
 # ---------------------------------------------------------------------------
 
 def _dispatch_tool(name: str, inputs: dict) -> Any:
-    source = inputs.get("source", "both")
+    source = inputs.get("source", "all")
 
     if name == "get_emails":
         return gmail.get_recent_emails()
@@ -229,6 +210,11 @@ def _dispatch_tool(name: str, inputs: dict) -> Any:
         if not message_id:
             raise ValueError("message_id is required for get_email_thread")
         return gmail.get_email_thread(message_id)
+
+    elif name == "search_ireland_rentals":
+        min_beds = inputs.get("min_beds", 2)
+        max_price = inputs.get("max_price", 2800)
+        return daft.search_rentals(min_beds=min_beds, max_price=max_price)
 
     elif name == "send_email":
         to = inputs.get("to", "")

@@ -1,10 +1,12 @@
 """Tests for agent/assistant.py"""
 
+import asyncio
+import json
 from unittest.mock import MagicMock, patch
 
 import pytest
 
-from agent.assistant import is_briefing_intent, _dispatch_tool
+from agent.assistant import is_briefing_intent, _dispatch_tool, stream_response
 
 
 class TestIsBriefingIntent:
@@ -81,6 +83,116 @@ class TestDispatchTool:
         with pytest.raises(ValueError, match="to, subject, and body"):
             _dispatch_tool("send_email", {"to": "a@b.com"})
 
+    def test_search_ireland_rentals(self):
+        listings = [{"title": "2 Bed Apt, Bray", "price_per_month": 1800, "url": "https://daft.ie/1"}]
+        with patch("agent.assistant.daft.search_rentals", return_value=listings):
+            result = _dispatch_tool("search_ireland_rentals", {})
+        assert result == listings
+
+    def test_search_ireland_rentals_passes_params(self):
+        with patch("agent.assistant.daft.search_rentals", return_value=[]) as mock_fn:
+            _dispatch_tool("search_ireland_rentals", {"min_beds": 3, "max_price": 3000})
+        mock_fn.assert_called_once_with(min_beds=3, max_price=3000)
+
     def test_raises_on_unknown_tool(self):
         with pytest.raises(ValueError, match="Unknown tool"):
             _dispatch_tool("nonexistent_tool", {})
+
+
+class TestStreamResponseErrorHandling:
+    """Tests for FINDING-002 fix: SSE errors surfaced as error events instead of hanging."""
+
+    def _collect(self, coro):
+        async def _run():
+            chunks = []
+            async for chunk in coro:
+                chunks.append(chunk)
+            return chunks
+        return asyncio.run(_run())
+
+    def test_exception_yields_error_sse_event(self):
+        """When _stream_briefing raises, stream_response yields an error SSE event."""
+        async def boom():
+            raise RuntimeError("No google token found")
+            yield  # make it an async generator
+
+        with patch("agent.assistant._stream_briefing", side_effect=boom):
+            chunks = self._collect(stream_response("morning briefing"))
+
+        # Should get an error event + DONE, not an empty stream
+        assert any('"error"' in c for c in chunks)
+        assert any("[DONE]" in c for c in chunks)
+
+    def test_exception_error_event_contains_message(self):
+        """The error SSE event contains the exception message."""
+        async def boom():
+            raise RuntimeError("No google token found")
+            yield
+
+        with patch("agent.assistant._stream_briefing", side_effect=boom):
+            chunks = self._collect(stream_response("morning briefing"))
+
+        error_chunks = [c for c in chunks if '"error"' in c]
+        assert len(error_chunks) == 1
+        payload = json.loads(error_chunks[0].replace("data: ", "").strip())
+        assert "No google token found" in payload["error"]
+
+    def test_done_sent_after_error(self):
+        """[DONE] is always the last chunk even on error, so the frontend can clean up."""
+        async def boom():
+            raise ValueError("token expired")
+            yield
+
+        with patch("agent.assistant._stream_briefing", side_effect=boom):
+            chunks = self._collect(stream_response("morning briefing"))
+
+        assert chunks[-1].strip() == "data: [DONE]"
+
+
+class TestStreamConversationalLoopCeiling:
+    """Tests for the 10-iteration ceiling on the tool-use loop."""
+
+    def _collect(self, coro):
+        async def _run():
+            chunks = []
+            async for chunk in coro:
+                chunks.append(chunk)
+            return chunks
+        return asyncio.run(_run())
+
+    def test_loop_ceiling_yields_error_after_10_iterations(self):
+        """If Claude keeps returning tool_use, loop errors out after 10 turns."""
+        from unittest.mock import AsyncMock, MagicMock
+        from agent.assistant import _stream_conversational
+
+        fake_tool_block = MagicMock()
+        fake_tool_block.type = "tool_use"
+        fake_tool_block.name = "get_weather"
+        fake_tool_block.input = {}
+        fake_tool_block.id = "tool_abc"
+
+        fake_final_msg = MagicMock()
+        fake_final_msg.stop_reason = "tool_use"
+        fake_final_msg.content = [fake_tool_block]
+
+        async def empty_text_stream():
+            return
+            yield
+
+        def make_stream():
+            stream = AsyncMock()
+            stream.__aenter__ = AsyncMock(return_value=stream)
+            stream.__aexit__ = AsyncMock(return_value=False)
+            stream.text_stream = empty_text_stream()
+            stream.get_final_message = AsyncMock(return_value=fake_final_msg)
+            return stream
+
+        with patch("agent.assistant.client.messages.stream", side_effect=lambda **kw: make_stream()), \
+             patch("agent.assistant._dispatch_tool", return_value={"temp_f": 72}):
+            chunks = self._collect(_stream_conversational("what's the weather?"))
+
+        error_chunks = [c for c in chunks if '"error"' in c]
+        assert len(error_chunks) == 1
+        payload = json.loads(error_chunks[0].replace("data: ", "").strip())
+        assert "maximum iterations" in payload["error"]
+        assert chunks[-1].strip() == "data: [DONE]"

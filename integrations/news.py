@@ -3,6 +3,7 @@ RSS news feed reader.
 
 Sources:
   - Google News (Austin, TX)
+  - KXAN Austin (local TV news)
   - Bloomberg Markets
   - TechCrunch
 
@@ -25,6 +26,7 @@ CACHE_TTL_MINUTES = 15
 
 FEEDS = {
     "austin": "https://news.google.com/rss/search?q=Austin+Texas&hl=en-US&gl=US&ceid=US:en",
+    "kxan": "https://www.kxan.com/feed/",
     "bloomberg": "https://feeds.bloomberg.com/markets/news.rss",
     "techcrunch": "https://techcrunch.com/feed/",
 }
@@ -50,7 +52,6 @@ def get_headlines() -> list[dict]:
                     all_articles.append(article)
         except Exception as e:
             logger.warning("News feed %s failed: %s", source, e)
-            all_articles.append({"source": source, "error": str(e)})
 
     return all_articles
 

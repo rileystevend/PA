@@ -16,7 +16,8 @@ A conversational web-based assistant that can read/send email, manage calendar e
 - **Frontend:** Vanilla HTML/JS chat UI (served by FastAPI), streaming via SSE
 - **Email/Calendar:** Google Gmail API, Google Calendar API, Microsoft Graph API (Outlook)
 - **Weather:** OpenWeatherMap API
-- **News:** RSS feeds via `feedparser` + `httpx` (Statesman requires session auth)
+- **News:** RSS feeds via `feedparser` + `httpx` (Google News, KXAN, Bloomberg, TechCrunch)
+- **Rentals:** Daft.ie gateway API via `httpx` (Ireland rental search)
 
 ## Environment Variables
 
@@ -30,8 +31,7 @@ MICROSOFT_CLIENT_SECRET=
 MICROSOFT_TENANT_ID=
 OPENWEATHER_API_KEY=
 USER_LOCATION=Austin,TX,US   # passed to OpenWeatherMap
-STATESMAN_EMAIL=
-STATESMAN_PASSWORD=
+ACCESS_TOKEN=               # optional: require token on first visit (?token=...)
 ```
 
 Store in `.env` (never commit). Load with `python-dotenv`.
@@ -55,7 +55,7 @@ PA/
 │   ├── outlook.py               # Outlook mail + calendar via Microsoft Graph
 │   ├── weather.py               # OpenWeatherMap current + forecast (10 min cache)
 │   ├── news.py                  # RSS feed reader (feedparser), 15 min cache
-│   └── statesman_auth.py        # Statesman session login + cookie refresh
+│   └── daft.py                  # Daft.ie rental search (gateway API), 30 min cache
 ├── auth/
 │   ├── token_store.py           # Shared: load/save/is_expired for OAuth tokens
 │   ├── google.py                # Google OAuth2 flow (calls token_store)
@@ -73,7 +73,7 @@ PA/
     ├── test_outlook.py
     ├── test_weather.py
     ├── test_news.py
-    ├── test_statesman_auth.py
+    ├── test_daft.py
     └── test_token_store.py
 ```
 
@@ -182,16 +182,6 @@ Shared module used by both `auth/google.py` and `auth/microsoft.py`. Handles:
 
 Both auth modules call `token_store.refresh()` when `is_expired()` returns True. Tokens expire in ~1 hour. This is non-negotiable — without refresh, the app silently stops working.
 
-### Statesman Session (`integrations/statesman_auth.py`)
-
-Separate from `news.py`. Owns:
-- POST to Arc Publishing login endpoint (likely `https://www.statesman.com/identity/api/v1/signin` — verify via network tab)
-- Session cookie storage in memory
-- `get_session()` — returns an `httpx.Client` with valid cookie attached
-- Auto-refreshes when a request redirects to the login page
-
-`news.py` calls `statesman_auth.get_session()` and uses the returned client. Does not manage session state itself.
-
 ### Rate Limits & Caching
 - Gmail: 250 quota units/user/second
 - Graph API: 10,000 requests/10 minutes per app
@@ -234,12 +224,23 @@ Separate from `news.py`. Owns:
 ### News (RSS)
 - Library: `feedparser`, `httpx`
 - Sources:
-  - Austin American-Statesman: session auth via `statesman_auth.get_session()`
+  - Google News Austin: `https://news.google.com/rss/search?q=Austin+Texas&hl=en-US&gl=US&ceid=US:en`
+  - KXAN Austin: `https://www.kxan.com/feed/` (local TV news — original Austin reporting)
   - Bloomberg: `https://feeds.bloomberg.com/markets/news.rss`
   - TechCrunch: `https://techcrunch.com/feed/`
 - Cache 15 minutes in memory
 - Deduplicate by URL across all sources
 - If one feed fails, return the others (partial result, not an error)
+- Stale cache note: if you see `~/.pa/cache/news_statesman.json`, it's safe to delete — `rm -f ~/.pa/cache/news_statesman.json`
+
+### Ireland Rentals (Daft.ie)
+- Library: `httpx`
+- Method: Daft.ie internal gateway API (`gateway.daft.ie`) with text-based location search
+- Default areas: Bray, Greystones, Dún Laoghaire, Sandyford (Dublin/Wicklow corridor)
+- Default filters: 2+ beds, max €2,800/month
+- Cache 30 minutes in memory
+- Fallback: returns a `fallback_note` sentinel if all areas fail (site may have changed structure)
+- Tool name: `search_ireland_rentals` (params: `min_beds`, `max_price`)
 
 ## What Claude Should Know
 

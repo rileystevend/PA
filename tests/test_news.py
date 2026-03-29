@@ -50,6 +50,8 @@ class TestGetHeadlines:
                 return _make_http_resp(_make_feed_xml("bloomberg"))
             if "techcrunch" in url:
                 return _make_http_resp(_make_feed_xml("techcrunch"))
+            if "kxan" in url:
+                return _make_http_resp(_make_feed_xml("kxan"))
             return _make_http_resp(_make_feed_xml("austin"))
 
         with patch("integrations.news.httpx.get", side_effect=fake_httpx_get):
@@ -59,6 +61,7 @@ class TestGetHeadlines:
         assert "bloomberg" in sources
         assert "techcrunch" in sources
         assert "austin" in sources
+        assert "kxan" in sources
 
     def test_returns_partial_when_one_source_fails(self, monkeypatch):
         def fake_httpx_get(url, **kwargs):
@@ -72,8 +75,8 @@ class TestGetHeadlines:
             results = news.get_headlines()
 
         assert any(r.get("source") in ("bloomberg", "techcrunch") for r in results)
-        error_items = [r for r in results if "error" in r]
-        assert len(error_items) >= 1
+        # Failed feeds are skipped cleanly — no error dicts injected into results
+        assert all("error" not in r for r in results)
 
     def test_deduplicates_by_url(self, monkeypatch):
         # All feeds return the same articles — only unique URLs should appear
