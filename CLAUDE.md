@@ -16,7 +16,8 @@ A conversational web-based assistant that can read/send email, manage calendar e
 - **Frontend:** Vanilla HTML/JS chat UI (served by FastAPI), streaming via SSE
 - **Email/Calendar:** Google Gmail API, Google Calendar API, Microsoft Graph API (Outlook)
 - **Weather:** OpenWeatherMap API
-- **News:** RSS feeds via `feedparser` + `httpx` (Google News, Bloomberg, TechCrunch)
+- **News:** RSS feeds via `feedparser` + `httpx` (Google News, KXAN, Bloomberg, TechCrunch)
+- **Rentals:** Daft.ie gateway API via `httpx` (Ireland rental search)
 
 ## Environment Variables
 
@@ -54,7 +55,7 @@ PA/
 │   ├── outlook.py               # Outlook mail + calendar via Microsoft Graph
 │   ├── weather.py               # OpenWeatherMap current + forecast (10 min cache)
 │   ├── news.py                  # RSS feed reader (feedparser), 15 min cache
-│   └── daft.py                  # Daft.ie rental search (scrapes __NEXT_DATA__), 30 min cache
+│   └── daft.py                  # Daft.ie rental search (gateway API), 30 min cache
 ├── auth/
 │   ├── token_store.py           # Shared: load/save/is_expired for OAuth tokens
 │   ├── google.py                # Google OAuth2 flow (calls token_store)
@@ -234,7 +235,7 @@ Both auth modules call `token_store.refresh()` when `is_expired()` returns True.
 
 ### Ireland Rentals (Daft.ie)
 - Library: `httpx`
-- Method: Scrapes `__NEXT_DATA__` JSON from Daft.ie Next.js server-rendered pages
+- Method: Daft.ie internal gateway API (`gateway.daft.ie`) with text-based location search
 - Default areas: Bray, Greystones, Dún Laoghaire, Sandyford (Dublin/Wicklow corridor)
 - Default filters: 2+ beds, max €2,800/month
 - Cache 30 minutes in memory

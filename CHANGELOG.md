@@ -5,15 +5,14 @@ All notable changes to PA (Personal Assistant) will be documented in this file.
 ## [0.2.1.1] - 2026-03-29
 
 ### Fixed
-- Daft.ie scraper switched from HTML page scraping to gateway API (`gateway.daft.ie/old/v1/listings`) — Cloudflare was blocking all direct page requests with 403
+- Daft.ie rental search now uses gateway API instead of HTML scraping. Cloudflare was blocking all direct page requests.
 
 ## [0.2.1.0] - 2026-03-29
 
 ### Added
-- Ireland rental search via Daft.ie integration (`integrations/daft.py`) with 30-min cache, dedup, and fallback sentinel
-- `search_ireland_rentals` tool for Claude conversational mode (Bray, Greystones, Dún Laoghaire, Sandyford)
-- Sidebar quick action for Ireland apartment search
-- Test coverage for dispatch handler and all-areas-fail fallback
+- You can now search Ireland rental listings by asking Claude. Covers Bray, Greystones, Dún Laoghaire, and Sandyford via Daft.ie. Results include address, price, beds/baths, and direct links.
+- Sidebar quick action button for Ireland apartment search
+- Full test coverage for rental search dispatch and graceful fallback when Daft.ie is unreachable
 
 ## [0.2.0.0] - 2026-03-29
 

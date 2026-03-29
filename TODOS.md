@@ -149,7 +149,7 @@
 ## Completed
 
 ### Add iteration ceiling to tool-use loop
-**Completed:** app-optimization-v1 (2026-03-29)
+**Completed:** v0.2.0.0 (2026-03-29)
 
 ### Fix error objects mixed into article list in news.py
-**Completed:** app-optimization-v1 (2026-03-29)
+**Completed:** v0.2.0.0 (2026-03-29)
