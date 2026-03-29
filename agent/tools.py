@@ -73,6 +73,30 @@ TOOLS = [
         },
     },
     {
+        "name": "search_ireland_rentals",
+        "description": (
+            "Search Daft.ie for rental properties in the Dublin/Wicklow corridor (Ireland). "
+            "Defaults: Bray, Greystones, Dún Laoghaire, Sandyford — 2+ beds — max €2,800/month. "
+            "Returns listings with address, price, beds, baths, and Daft.ie URL. "
+            "When presenting results, format each as a markdown link: [address](url). "
+            "If the result contains a 'fallback_note' key, show it to the user."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "min_beds": {
+                    "type": "integer",
+                    "description": "Minimum number of bedrooms. Default: 2.",
+                },
+                "max_price": {
+                    "type": "integer",
+                    "description": "Maximum monthly rent in euros. Default: 2800.",
+                },
+            },
+            "required": [],
+        },
+    },
+    {
         "name": "send_email",
         "description": (
             "Send an email via Gmail. "

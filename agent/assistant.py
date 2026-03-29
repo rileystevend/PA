@@ -20,7 +20,7 @@ from typing import Any
 import anthropic
 
 from agent.tools import TOOLS
-from integrations import gcal, gmail, news, weather
+from integrations import daft, gcal, gmail, news, weather
 
 logger = logging.getLogger(__name__)
 
@@ -210,6 +210,11 @@ def _dispatch_tool(name: str, inputs: dict) -> Any:
         if not message_id:
             raise ValueError("message_id is required for get_email_thread")
         return gmail.get_email_thread(message_id)
+
+    elif name == "search_ireland_rentals":
+        min_beds = inputs.get("min_beds", 2)
+        max_price = inputs.get("max_price", 2800)
+        return daft.search_rentals(min_beds=min_beds, max_price=max_price)
 
     elif name == "send_email":
         to = inputs.get("to", "")
