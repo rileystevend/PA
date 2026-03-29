@@ -748,7 +748,11 @@
   function saveConversation() {
     const msgs = [...messages.querySelectorAll('.message')].map(el => ({
       role: el.classList.contains('user') ? 'user' : 'assistant',
-      text: el.classList.contains('user') ? el.textContent : el.querySelector('.content').innerHTML,
+      // Save raw markdown for assistant messages — innerHTML would re-inflate on load,
+      // rawText preserves the source of truth for history sent back to Claude.
+      text: el.classList.contains('user')
+        ? el.textContent
+        : (el.dataset.rawText || el.querySelector('.content')?.textContent || ''),
       isHTML: el.classList.contains('assistant'),
     }));
     const capped = msgs.slice(-MAX_MESSAGES);
@@ -771,8 +775,9 @@
         const el = document.createElement('div');
         el.className = `message ${m.role}`;
         if (m.role === 'assistant') {
+          el.dataset.rawText = m.text;
           el.innerHTML = `
-            <div class="content">${m.text}</div>
+            <div class="content">${renderMarkdown(m.text)}</div>
             <button class="copy-btn" aria-label="Copy response" onclick="copyMessage(this)">Copy</button>
           `;
         } else {
@@ -856,7 +861,8 @@
         role: el.classList.contains('user') ? 'user' : 'assistant',
         content: el.classList.contains('user')
           ? el.textContent.trim()
-          : (el.querySelector('.content')?.textContent || '').trim(),
+          // Use stored raw markdown — textContent would strip ** bold **, bullets, etc.
+          : (el.dataset.rawText || el.querySelector('.content')?.textContent || '').trim(),
       })).filter(m => m.content);
 
       const resp = await fetch('/chat', {
@@ -913,6 +919,9 @@
       contentEl.innerHTML = `<p style="color:#e05050">Connection error: ${err.message}</p>`;
     } finally {
       cursor.remove();
+      // Persist raw markdown so history sent back to Claude is never degraded
+      // by textContent stripping. contentEl.textContent loses **bold**, bullets, etc.
+      msgEl.dataset.rawText = fullText;
       streaming = false;
       sendBtn.disabled = false;
       statusEl.textContent = 'Personal Assistant';

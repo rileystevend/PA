@@ -129,6 +129,7 @@ async def _stream_conversational(message: str, history: list = None) -> AsyncGen
             yield "data: [DONE]\n\n"
             return
 
+        text_chunks: list[str] = []
         async with client.messages.stream(
             model=MODEL,
             max_tokens=4096,
@@ -136,10 +137,12 @@ async def _stream_conversational(message: str, history: list = None) -> AsyncGen
             messages=messages,
         ) as stream:
             async for text in stream.text_stream:
-                yield f"data: {json.dumps({'text': text})}\n\n"
+                text_chunks.append(text)
             response = await stream.get_final_message()
 
         if response.stop_reason == "tool_use":
+            # Discard any text emitted before the tool call (thinking-aloud tokens).
+            # Streaming those would produce a garbled double-response in the UI.
             tool_calls = [b for b in response.content if b.type == "tool_use"]
 
             # Dispatch all tool calls concurrently
@@ -167,6 +170,9 @@ async def _stream_conversational(message: str, history: list = None) -> AsyncGen
             messages.append({"role": "user", "content": result_blocks})
 
         else:
+            # Final response — stream the buffered text now.
+            for chunk in text_chunks:
+                yield f"data: {json.dumps({'text': chunk})}\n\n"
             yield "data: [DONE]\n\n"
             return
 
