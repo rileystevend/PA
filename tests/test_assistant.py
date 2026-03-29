@@ -136,3 +136,52 @@ class TestStreamResponseErrorHandling:
             chunks = self._collect(stream_response("morning briefing"))
 
         assert chunks[-1].strip() == "data: [DONE]"
+
+
+class TestStreamConversationalLoopCeiling:
+    """Tests for the 10-iteration ceiling on the tool-use loop."""
+
+    def _collect(self, coro):
+        async def _run():
+            chunks = []
+            async for chunk in coro:
+                chunks.append(chunk)
+            return chunks
+        return asyncio.run(_run())
+
+    def test_loop_ceiling_yields_error_after_10_iterations(self):
+        """If Claude keeps returning tool_use, loop errors out after 10 turns."""
+        from unittest.mock import AsyncMock, MagicMock
+        from agent.assistant import _stream_conversational
+
+        fake_tool_block = MagicMock()
+        fake_tool_block.type = "tool_use"
+        fake_tool_block.name = "get_weather"
+        fake_tool_block.input = {}
+        fake_tool_block.id = "tool_abc"
+
+        fake_final_msg = MagicMock()
+        fake_final_msg.stop_reason = "tool_use"
+        fake_final_msg.content = [fake_tool_block]
+
+        async def empty_text_stream():
+            return
+            yield
+
+        def make_stream():
+            stream = AsyncMock()
+            stream.__aenter__ = AsyncMock(return_value=stream)
+            stream.__aexit__ = AsyncMock(return_value=False)
+            stream.text_stream = empty_text_stream()
+            stream.get_final_message = AsyncMock(return_value=fake_final_msg)
+            return stream
+
+        with patch("agent.assistant.client.messages.stream", side_effect=lambda **kw: make_stream()), \
+             patch("agent.assistant._dispatch_tool", return_value={"temp_f": 72}):
+            chunks = self._collect(_stream_conversational("what's the weather?"))
+
+        error_chunks = [c for c in chunks if '"error"' in c]
+        assert len(error_chunks) == 1
+        payload = json.loads(error_chunks[0].replace("data: ", "").strip())
+        assert "maximum iterations" in payload["error"]
+        assert chunks[-1].strip() == "data: [DONE]"
