@@ -83,6 +83,8 @@ async def _stream_briefing() -> AsyncGenerator[str, None]:
         "Write a concise, friendly morning briefing. Lead with the weather and calendar, "
         "then highlight the most important emails (flag anything urgent), "
         "then give the top news headlines grouped by source. "
+        "For each headline, format it as a markdown link using its url field: [Title](url). "
+        "If a headline has no url, show the title as plain text. "
         "If any source was unavailable, mention it briefly. "
         "Use markdown formatting."
     )
