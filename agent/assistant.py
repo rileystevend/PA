@@ -236,10 +236,15 @@ def _dispatch_tool(name: str, inputs: dict) -> Any:
         )
 
     elif name == "get_health_summary":
-        garmin_data = garmin.get_summary()
-        bodycomp_data = apple_health.get_summary()
-        merged = {"garmin": garmin_data, "body_composition": bodycomp_data}
-        return merged
+        try:
+            garmin_data = garmin.get_summary()
+        except Exception as e:
+            garmin_data = {"source": "garmin", "error": str(e)}
+        try:
+            bodycomp_data = apple_health.get_summary()
+        except Exception as e:
+            bodycomp_data = {"source": "apple_health", "error": str(e)}
+        return {"garmin": garmin_data, "body_composition": bodycomp_data}
 
     elif name == "search_ireland_rentals":
         min_beds = inputs.get("min_beds", 2)

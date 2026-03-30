@@ -89,7 +89,8 @@ def _parse_body_comp(path: Path) -> dict:
         try:
             date_str = elem.get("startDate", "")
             # Apple Health format: 2026-03-15 07:30:00 -0500
-            dt = datetime.strptime(date_str[:19], "%Y-%m-%d %H:%M:%S").replace(tzinfo=timezone.utc)
+            # Parse the full string including timezone offset
+            dt = datetime.strptime(date_str, "%Y-%m-%d %H:%M:%S %z")
             if dt < cutoff:
                 elem.clear()
                 continue
@@ -103,12 +104,6 @@ def _parse_body_comp(path: Path) -> dict:
                 "HKQuantityTypeIdentifierLeanBodyMass",
             ):
                 value = value * 2.20462
-
-            # Body fat is already a percentage (0-100) or fraction (0-1)
-            if record_type == "HKQuantityTypeIdentifierBodyFatPercentage" and unit == "%":
-                pass  # already percentage
-            elif record_type == "HKQuantityTypeIdentifierBodyFatPercentage" and value < 1:
-                value = value * 100  # convert fraction to percentage
 
             records[record_type].append((dt, value))
         except (ValueError, TypeError):

@@ -51,7 +51,12 @@ def get_summary() -> dict:
 
     try:
         result = _fetch_health_data(client)
-        cache.save(CACHE_NAME, result)
+        # Don't cache empty results — all sub-fetches may have silently failed
+        data_keys = [k for k in result if k != "source"]
+        if data_keys:
+            cache.save(CACHE_NAME, result)
+        else:
+            result["error"] = "All Garmin data endpoints returned empty. Session may be stale."
         return result
     except Exception as e:
         logger.warning("Garmin data fetch failed: %s", e)
@@ -118,13 +123,18 @@ def _fetch_health_data(client) -> dict:
     except Exception as e:
         logger.debug("Garmin VO2 max fetch failed: %s", e)
 
-    # Weight (latest)
+    # Weight (latest) — Garmin API returns weight in grams
     try:
         weight_data = client.get_body_composition(today)
         if weight_data and "weight" in weight_data:
             weight_g = weight_data["weight"]
             if weight_g and weight_g > 0:
-                result["weight_lbs"] = round(weight_g / 453.592, 1)
+                weight_lbs = round(weight_g / 453.592, 1)
+                # Sanity check: skip if outside reasonable range (unit may have changed)
+                if 50 <= weight_lbs <= 500:
+                    result["weight_lbs"] = weight_lbs
+                else:
+                    logger.warning("Garmin weight value outside reasonable range: %s g → %s lbs", weight_g, weight_lbs)
     except Exception as e:
         logger.debug("Garmin weight fetch failed: %s", e)
 
