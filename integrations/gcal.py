@@ -1,11 +1,12 @@
 """
-Google Calendar integration (read-only).
+Google Calendar integration.
 
-Fetch strategy: all events for today (midnight to midnight local time).
+Read: all events for today (midnight to midnight local time).
+Write: create events on the user's primary calendar.
 """
 
 import logging
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build
@@ -64,6 +65,50 @@ def get_todays_events() -> list[dict]:
 
     events.sort(key=lambda e: e["start"])
     return events
+
+
+def create_event(
+    title: str,
+    start: str,
+    end: str,
+    description: str = "",
+    location: str = "",
+) -> dict:
+    """
+    Create a calendar event on the user's primary calendar.
+
+    Args:
+        title: Event summary/title.
+        start: ISO 8601 datetime string (e.g. "2026-03-29T14:00:00-05:00").
+        end: ISO 8601 datetime string.
+        description: Optional event description.
+        location: Optional location string.
+
+    Returns:
+        dict with {title, start, end, link} of the created event.
+    """
+    token = token_store.get_valid("google")
+    creds = _credentials_from_token(token)
+    service = build("calendar", "v3", credentials=creds)
+
+    body = {
+        "summary": title,
+        "start": {"dateTime": start},
+        "end": {"dateTime": end},
+    }
+    if description:
+        body["description"] = description
+    if location:
+        body["location"] = location
+
+    event = service.events().insert(calendarId="primary", body=body).execute()
+
+    return {
+        "title": event.get("summary", ""),
+        "start": event["start"].get("dateTime", ""),
+        "end": event["end"].get("dateTime", ""),
+        "link": event.get("htmlLink", ""),
+    }
 
 
 def _credentials_from_token(token: dict) -> Credentials:

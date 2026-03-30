@@ -97,6 +97,43 @@ TOOLS = [
         },
     },
     {
+        "name": "create_calendar_event",
+        "description": (
+            "Create a new event on the user's Google Calendar. "
+            "IMPORTANT: Before calling this tool, you MUST present the event details to the user "
+            "(title, date, start time, end time, and any description/location) and explicitly ask for confirmation. "
+            "Only call create_calendar_event after the user has said 'yes', 'looks good', 'add it', or similar. "
+            "Never create an event without explicit approval. "
+            "All times must be ISO 8601 with timezone offset (e.g. 2026-03-30T14:00:00-05:00)."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "title": {
+                    "type": "string",
+                    "description": "Event title/summary.",
+                },
+                "start": {
+                    "type": "string",
+                    "description": "Start time in ISO 8601 format with timezone (e.g. 2026-03-30T14:00:00-05:00).",
+                },
+                "end": {
+                    "type": "string",
+                    "description": "End time in ISO 8601 format with timezone (e.g. 2026-03-30T15:00:00-05:00).",
+                },
+                "description": {
+                    "type": "string",
+                    "description": "Optional event description.",
+                },
+                "location": {
+                    "type": "string",
+                    "description": "Optional event location.",
+                },
+            },
+            "required": ["title", "start", "end"],
+        },
+    },
+    {
         "name": "send_email",
         "description": (
             "Send an email via Gmail. "

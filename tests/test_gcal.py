@@ -63,3 +63,67 @@ class TestGetTodaysEvents:
     def test_real_gcal_fetch(self):
         results = gcal.get_todays_events()
         assert isinstance(results, list)
+
+
+class TestCreateEvent:
+    def test_creates_event_happy_path(self):
+        fake_event = {
+            "summary": "Lunch with Amy",
+            "start": {"dateTime": "2026-03-30T12:00:00-05:00"},
+            "end": {"dateTime": "2026-03-30T13:00:00-05:00"},
+            "htmlLink": "https://calendar.google.com/event?eid=abc",
+        }
+        service = MagicMock()
+        service.events().insert().execute.return_value = fake_event
+
+        with patch("integrations.gcal.token_store.get_valid", return_value=_mock_token()):
+            with patch("integrations.gcal.build", return_value=service):
+                result = gcal.create_event(
+                    title="Lunch with Amy",
+                    start="2026-03-30T12:00:00-05:00",
+                    end="2026-03-30T13:00:00-05:00",
+                )
+
+        assert result["title"] == "Lunch with Amy"
+        assert result["link"] == "https://calendar.google.com/event?eid=abc"
+        service.events().insert.assert_called_with(
+            calendarId="primary",
+            body={
+                "summary": "Lunch with Amy",
+                "start": {"dateTime": "2026-03-30T12:00:00-05:00"},
+                "end": {"dateTime": "2026-03-30T13:00:00-05:00"},
+            },
+        )
+
+    def test_creates_event_with_description_and_location(self):
+        fake_event = {
+            "summary": "Dentist",
+            "start": {"dateTime": "2026-03-30T10:00:00-05:00"},
+            "end": {"dateTime": "2026-03-30T11:00:00-05:00"},
+            "htmlLink": "https://calendar.google.com/event?eid=xyz",
+        }
+        service = MagicMock()
+        service.events().insert().execute.return_value = fake_event
+
+        with patch("integrations.gcal.token_store.get_valid", return_value=_mock_token()):
+            with patch("integrations.gcal.build", return_value=service):
+                result = gcal.create_event(
+                    title="Dentist",
+                    start="2026-03-30T10:00:00-05:00",
+                    end="2026-03-30T11:00:00-05:00",
+                    description="Annual cleaning",
+                    location="123 Main St",
+                )
+
+        call_body = service.events().insert.call_args[1]["body"]
+        assert call_body["description"] == "Annual cleaning"
+        assert call_body["location"] == "123 Main St"
+
+    def test_raises_when_token_missing(self):
+        with patch("integrations.gcal.token_store.get_valid",
+                   side_effect=RuntimeError("No google token found")):
+            with pytest.raises(RuntimeError, match="No google token"):
+                gcal.create_event(
+                    title="Test", start="2026-03-30T10:00:00-05:00",
+                    end="2026-03-30T11:00:00-05:00",
+                )

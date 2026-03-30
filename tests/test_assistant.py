@@ -71,6 +71,21 @@ class TestDispatchTool:
         with pytest.raises(ValueError, match="message_id is required"):
             _dispatch_tool("get_email_thread", {})
 
+    def test_create_calendar_event(self):
+        created = {"title": "Lunch", "start": "2026-03-30T12:00:00-05:00",
+                   "end": "2026-03-30T13:00:00-05:00", "link": "https://cal/abc"}
+        with patch("agent.assistant.gcal.create_event", return_value=created):
+            result = _dispatch_tool("create_calendar_event", {
+                "title": "Lunch", "start": "2026-03-30T12:00:00-05:00",
+                "end": "2026-03-30T13:00:00-05:00",
+            })
+        assert result["title"] == "Lunch"
+        assert result["link"] == "https://cal/abc"
+
+    def test_create_calendar_event_missing_fields(self):
+        with pytest.raises(ValueError, match="title, start, and end"):
+            _dispatch_tool("create_calendar_event", {"title": "Lunch"})
+
     def test_send_email(self):
         sent = {"message_id": "sent1", "thread_id": "t1"}
         with patch("agent.assistant.gmail.send_email", return_value=sent):

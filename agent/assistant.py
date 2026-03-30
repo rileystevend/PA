@@ -211,6 +211,20 @@ def _dispatch_tool(name: str, inputs: dict) -> Any:
             raise ValueError("message_id is required for get_email_thread")
         return gmail.get_email_thread(message_id)
 
+    elif name == "create_calendar_event":
+        title = inputs.get("title", "")
+        start = inputs.get("start", "")
+        end = inputs.get("end", "")
+        if not all([title, start, end]):
+            raise ValueError("title, start, and end are all required for create_calendar_event")
+        return gcal.create_event(
+            title=title,
+            start=start,
+            end=end,
+            description=inputs.get("description", ""),
+            location=inputs.get("location", ""),
+        )
+
     elif name == "search_ireland_rentals":
         min_beds = inputs.get("min_beds", 2)
         max_price = inputs.get("max_price", 2800)
