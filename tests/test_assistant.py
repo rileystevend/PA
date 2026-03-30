@@ -109,6 +109,24 @@ class TestDispatchTool:
             _dispatch_tool("search_ireland_rentals", {"min_beds": 3, "max_price": 3000})
         mock_fn.assert_called_once_with(min_beds=3, max_price=3000)
 
+    def test_get_health_summary(self):
+        garmin_data = {"source": "garmin", "sleep_hours": 7.2, "steps": 8500}
+        bodycomp_data = {"source": "apple_health", "weight_lbs": 180.0, "body_fat_pct": 18.5}
+        with patch("agent.assistant.garmin.get_summary", return_value=garmin_data), \
+             patch("agent.assistant.apple_health.get_summary", return_value=bodycomp_data):
+            result = _dispatch_tool("get_health_summary", {})
+        assert result["garmin"]["sleep_hours"] == 7.2
+        assert result["body_composition"]["body_fat_pct"] == 18.5
+
+    def test_get_health_summary_partial_failure(self):
+        garmin_data = {"source": "garmin", "error": "Garmin unavailable"}
+        bodycomp_data = {"source": "apple_health", "weight_lbs": 180.0}
+        with patch("agent.assistant.garmin.get_summary", return_value=garmin_data), \
+             patch("agent.assistant.apple_health.get_summary", return_value=bodycomp_data):
+            result = _dispatch_tool("get_health_summary", {})
+        assert "error" in result["garmin"]
+        assert result["body_composition"]["weight_lbs"] == 180.0
+
     def test_raises_on_unknown_tool(self):
         with pytest.raises(ValueError, match="Unknown tool"):
             _dispatch_tool("nonexistent_tool", {})

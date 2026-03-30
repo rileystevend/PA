@@ -146,6 +146,50 @@
 
 ---
 
+## Health Integration
+
+### Add Garmin breakage monitoring
+
+**What:** Alert when Garmin data hasn't refreshed in 48+ hours. `garminconnect` is a reverse-engineered library with no official API — Garmin can break it at any time.
+
+**Why:** Without monitoring, health data silently drops from the morning briefing and nobody notices for days. The `return_exceptions=True` pattern handles the crash but doesn't surface the ongoing outage.
+
+**Context:** `integrations/garmin.py`. After implementing the Garmin module, add a staleness check: if the cache file's `fetched_at` is >48h old and a fresh fetch also fails, log a warning and include "Garmin data may be unavailable" in the briefing context. Could also add a `/health/status` diagnostic endpoint.
+
+**Effort:** S
+**Priority:** P2
+**Depends on:** Garmin integration (health-data-integration branch)
+
+---
+
+### Investigate Apple Health real-time data path
+
+**What:** Replace the manual XML export for body composition with an automated path: iOS Shortcuts pushing to a local endpoint, or Apple Health MCP Server.
+
+**Why:** The current plan uses manual Apple Health XML export for Hume body composition data. This works for weekly body comp (doesn't change daily) but won't scale to daily nutrition data from CalAI later.
+
+**Context:** Options: (1) iOS Shortcuts automation — export Health data at midnight, save to iCloud, sync to Mac. (2) Apple Health MCP Server (open source) — queryable via MCP protocol. (3) `apple-health-exporter` OSS tool. Evaluate which path is most reliable before building the full Apple Health integration.
+
+**Effort:** M
+**Priority:** P2
+**Depends on:** Health integration MVP shipped
+
+---
+
+### Add Garmin auth bootstrap flow
+
+**What:** Document and implement the initial Garmin login: a CLI setup command or `/auth/garmin` route that handles the first-time email/password + MFA flow via `garth`.
+
+**Why:** Every other integration has an explicit auth flow (`/auth/google`, `/auth/microsoft`). Garmin currently requires the user to run a Python one-liner in the terminal. This is fine for the MVP but should be formalized.
+
+**Context:** `garth` caches session tokens in `~/.garth/`. First auth needs email + password + MFA. After that, `garth` auto-refreshes. Consider adding a `scripts/setup_garmin.py` CLI script or an `/auth/garmin` FastAPI route that prompts for credentials.
+
+**Effort:** S
+**Priority:** P3
+**Depends on:** Garmin integration (health-data-integration branch)
+
+---
+
 ## Completed
 
 ### Add iteration ceiling to tool-use loop
