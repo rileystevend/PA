@@ -124,8 +124,7 @@ def _summarize(records: dict[str, list], path: Path) -> dict:
     result: dict = {"source": "apple_health"}
 
     # Export age
-    import os as _os
-    mtime = datetime.fromtimestamp(_os.path.getmtime(path), tz=timezone.utc)
+    mtime = datetime.fromtimestamp(os.path.getmtime(path), tz=timezone.utc)
     age_days = (datetime.now(timezone.utc) - mtime).days
     result["export_age_days"] = age_days
     if age_days > 7:

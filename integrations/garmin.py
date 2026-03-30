@@ -61,7 +61,6 @@ def get_summary() -> dict:
 def _fetch_health_data(client) -> dict:
     """Pull health metrics from Garmin and normalize to standard keys."""
     today = date.today().isoformat()
-    yesterday = date.today().replace(day=date.today().day - 1).isoformat() if date.today().day > 1 else today
 
     result = {"source": "garmin"}
 
