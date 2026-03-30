@@ -32,6 +32,9 @@ MICROSOFT_TENANT_ID=
 OPENWEATHER_API_KEY=
 USER_LOCATION=Austin,TX,US   # passed to OpenWeatherMap
 ACCESS_TOKEN=               # optional: require token on first visit (?token=...)
+GARMIN_EMAIL=               # Garmin Connect email for health data
+GARMIN_PASSWORD=            # Garmin Connect password (first login only, then garth caches session)
+APPLE_HEALTH_EXPORT_PATH=   # path to Apple Health XML export (default: ~/.pa/health/export.xml)
 ```
 
 Store in `.env` (never commit). Load with `python-dotenv`.
@@ -55,7 +58,10 @@ PA/
 │   ├── outlook.py               # Outlook mail + calendar via Microsoft Graph
 │   ├── weather.py               # OpenWeatherMap current + forecast (10 min cache)
 │   ├── news.py                  # RSS feed reader (feedparser), 15 min cache
-│   └── daft.py                  # Daft.ie rental search (gateway API), 30 min cache
+│   ├── daft.py                  # Daft.ie rental search (gateway API), 30 min cache
+│   ├── garmin.py                # Garmin Connect health data (garminconnect), 30 min cache
+│   ├── apple_health.py          # Apple Health body composition (XML export), 24h cache
+│   └── cache.py                 # Shared persistent file cache helper
 ├── auth/
 │   ├── token_store.py           # Shared: load/save/is_expired for OAuth tokens
 │   ├── google.py                # Google OAuth2 flow (calls token_store)

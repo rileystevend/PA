@@ -20,7 +20,7 @@ from typing import Any
 import anthropic
 
 from agent.tools import TOOLS
-from integrations import daft, gcal, gmail, news, weather
+from integrations import apple_health, daft, garmin, gcal, gmail, news, weather
 
 logger = logging.getLogger(__name__)
 
@@ -68,10 +68,12 @@ async def _stream_briefing() -> AsyncGenerator[str, None]:
         asyncio.to_thread(gcal.get_todays_events),
         asyncio.to_thread(weather.get_weather),
         asyncio.to_thread(news.get_headlines),
+        asyncio.to_thread(garmin.get_summary),
+        asyncio.to_thread(apple_health.get_summary),
         return_exceptions=True,
     )
 
-    gmail_emails, gcal_events, wx, headlines = results
+    gmail_emails, gcal_events, wx, headlines, health_garmin, health_bodycomp = results
 
     # Build context block — include error notes for failed sources
     context_parts = []
@@ -80,6 +82,8 @@ async def _stream_briefing() -> AsyncGenerator[str, None]:
     context_parts.append(_format_result("Google Calendar events", gcal_events))
     context_parts.append(_format_result("Weather", wx))
     context_parts.append(_format_result("News headlines", headlines))
+    context_parts.append(_format_result("Health data (Garmin)", health_garmin))
+    context_parts.append(_format_result("Body composition (Hume/Apple Health)", health_bodycomp))
 
     context = "\n\n".join(context_parts)
 
@@ -87,9 +91,15 @@ async def _stream_briefing() -> AsyncGenerator[str, None]:
         "You are a personal assistant. The user asked for their morning briefing. "
         "Here is all the data:\n\n"
         f"{context}\n\n"
-        "Write a concise, friendly morning briefing. Lead with the weather and calendar, "
-        "then highlight the most important emails (flag anything urgent), "
-        "then give the top news headlines grouped by source. "
+        "Write a concise, friendly morning briefing. "
+        "Open with a 'Today's advisory' — 1-2 sentences cross-referencing health signals "
+        "(sleep, HRV, Body Battery) with today's calendar. For example: 'Poor sleep + heavy "
+        "meeting day = manage your energy. Consider a lighter workout.' "
+        "Then weather and calendar in their own section. "
+        "Then a health summary section: sleep (duration and stages), HRV, Body Battery, "
+        "weight trend, body composition if available, and any notable activity. "
+        "Then highlight the most important emails (flag anything urgent). "
+        "Then give the top news headlines grouped by source. "
         "For each headline, format it as a markdown link using its url field: [Title](url). "
         "If a headline has no url, show the title as plain text. "
         "If any source was unavailable, mention it briefly. "
@@ -224,6 +234,17 @@ def _dispatch_tool(name: str, inputs: dict) -> Any:
             description=inputs.get("description", ""),
             location=inputs.get("location", ""),
         )
+
+    elif name == "get_health_summary":
+        try:
+            garmin_data = garmin.get_summary()
+        except Exception as e:
+            garmin_data = {"source": "garmin", "error": str(e)}
+        try:
+            bodycomp_data = apple_health.get_summary()
+        except Exception as e:
+            bodycomp_data = {"source": "apple_health", "error": str(e)}
+        return {"garmin": garmin_data, "body_composition": bodycomp_data}
 
     elif name == "search_ireland_rentals":
         min_beds = inputs.get("min_beds", 2)

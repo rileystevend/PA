@@ -73,6 +73,20 @@ TOOLS = [
         },
     },
     {
+        "name": "get_health_summary",
+        "description": (
+            "Get a summary of recent health data from Garmin (sleep, HRV, Body Battery, "
+            "steps, VO2 max, activity) and body composition from Hume scale (weight, body fat %, "
+            "lean mass). Returns standardized metrics with keys like sleep_hours, hrv_ms, "
+            "body_battery, steps, body_fat_pct, weight_lbs, weight_trend."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {},
+            "required": [],
+        },
+    },
+    {
         "name": "search_ireland_rentals",
         "description": (
             "Search Daft.ie for rental properties in the Dublin/Wicklow corridor (Ireland). "
