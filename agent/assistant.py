@@ -231,7 +231,8 @@ def _dispatch_tool(name: str, inputs: dict) -> Any:
         return gmail.get_recent_emails()
 
     elif name == "get_calendar_events":
-        return gcal.get_todays_events()
+        days = inputs.get("days", 1)
+        return gcal.get_events(days=days)
 
     elif name == "get_weather":
         return weather.get_weather()

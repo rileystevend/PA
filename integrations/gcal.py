@@ -1,7 +1,7 @@
 """
 Google Calendar integration.
 
-Read: all events for today (midnight to midnight local time).
+Read: events for today or a configurable number of days ahead.
 Write: create events on the user's primary calendar.
 """
 
@@ -17,21 +17,28 @@ logger = logging.getLogger(__name__)
 
 
 def get_todays_events() -> list[dict]:
+    """Return all calendar events for today. Convenience wrapper around get_events."""
+    return get_events(days=1)
+
+
+def get_events(days: int = 1) -> list[dict]:
     """
-    Return all calendar events for today.
+    Return calendar events from now through `days` days ahead.
+    days=1 means today only, days=7 means the next week, days=30 means a full month.
     Each item: {title, start, end, calendar, location, description}
     """
+    days = max(1, min(days, 90))  # clamp to 1-90
+
     token = token_store.get_valid("google")
     creds = _credentials_from_token(token)
     service = build("calendar", "v3", credentials=creds)
 
-    # Today's bounds in local time, converted to UTC for the API
     now = datetime.now().astimezone()
     start_of_day = now.replace(hour=0, minute=0, second=0, microsecond=0)
-    end_of_day = now.replace(hour=23, minute=59, second=59, microsecond=0)
+    end_day = start_of_day + timedelta(days=days)
 
     time_min = start_of_day.isoformat()
-    time_max = end_of_day.isoformat()
+    time_max = end_day.isoformat()
 
     calendars = service.calendarList().list().execute().get("items", [])
     events = []
