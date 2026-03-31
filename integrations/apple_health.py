@@ -24,7 +24,7 @@ from integrations import cache
 logger = logging.getLogger(__name__)
 
 CACHE_NAME = "health_bodycomp"
-CACHE_TTL_MINUTES = 60 * 24  # 24 hours — body comp doesn't change fast
+CACHE_TTL_MINUTES = 60 * 48  # 48 hours — body comp pushed daily by iOS Shortcut
 
 # Only these HK types are extracted (body composition from Hume scale)
 BODY_COMP_TYPES = {
@@ -56,7 +56,7 @@ def get_summary() -> dict:
     if not export_path.exists():
         return {
             "source": "apple_health",
-            "error": f"No Apple Health export found at {export_path}. Export from iPhone: Health → profile → Export All Health Data.",
+            "error": "No body composition data available. Set up the iOS Shortcut to push data to POST /health/ingest, or export from iPhone Health → profile → Export All Health Data.",
         }
 
     try:

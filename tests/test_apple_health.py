@@ -31,7 +31,7 @@ class TestGetSummary:
              patch.dict(os.environ, {"APPLE_HEALTH_EXPORT_PATH": str(missing)}):
             result = get_summary()
         assert "error" in result
-        assert "No Apple Health export found" in result["error"]
+        assert "No body composition data available" in result["error"]
 
     def test_parses_export_and_caches(self, tmp_path):
         xml = _make_export_xml([
