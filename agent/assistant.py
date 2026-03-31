@@ -233,6 +233,7 @@ def _dispatch_tool(name: str, inputs: dict) -> Any:
             end=end,
             description=inputs.get("description", ""),
             location=inputs.get("location", ""),
+            attendees=inputs.get("attendees"),
         )
 
     elif name == "get_health_summary":

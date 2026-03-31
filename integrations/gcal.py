@@ -73,6 +73,7 @@ def create_event(
     end: str,
     description: str = "",
     location: str = "",
+    attendees: list[str] | None = None,
 ) -> dict:
     """
     Create a calendar event on the user's primary calendar.
@@ -83,9 +84,10 @@ def create_event(
         end: ISO 8601 datetime string.
         description: Optional event description.
         location: Optional location string.
+        attendees: Optional list of email addresses to invite.
 
     Returns:
-        dict with {title, start, end, link} of the created event.
+        dict with {title, start, end, link, attendees} of the created event.
     """
     token = token_store.get_valid("google")
     creds = _credentials_from_token(token)
@@ -100,6 +102,8 @@ def create_event(
         body["description"] = description
     if location:
         body["location"] = location
+    if attendees:
+        body["attendees"] = [{"email": email} for email in attendees]
 
     event = service.events().insert(calendarId="primary", body=body).execute()
 
@@ -108,6 +112,7 @@ def create_event(
         "start": event["start"].get("dateTime", ""),
         "end": event["end"].get("dateTime", ""),
         "link": event.get("htmlLink", ""),
+        "attendees": [a.get("email", "") for a in event.get("attendees", [])],
     }
 
 

@@ -119,6 +119,58 @@ class TestCreateEvent:
         assert call_body["description"] == "Annual cleaning"
         assert call_body["location"] == "123 Main St"
 
+    def test_creates_event_with_attendees(self):
+        fake_event = {
+            "summary": "Team sync",
+            "start": {"dateTime": "2026-03-31T15:00:00-05:00"},
+            "end": {"dateTime": "2026-03-31T16:00:00-05:00"},
+            "htmlLink": "https://calendar.google.com/event?eid=inv",
+            "attendees": [
+                {"email": "alice@example.com"},
+                {"email": "bob@example.com"},
+            ],
+        }
+        service = MagicMock()
+        service.events().insert().execute.return_value = fake_event
+
+        with patch("integrations.gcal.token_store.get_valid", return_value=_mock_token()):
+            with patch("integrations.gcal.build", return_value=service):
+                result = gcal.create_event(
+                    title="Team sync",
+                    start="2026-03-31T15:00:00-05:00",
+                    end="2026-03-31T16:00:00-05:00",
+                    attendees=["alice@example.com", "bob@example.com"],
+                )
+
+        call_body = service.events().insert.call_args[1]["body"]
+        assert call_body["attendees"] == [
+            {"email": "alice@example.com"},
+            {"email": "bob@example.com"},
+        ]
+        assert result["attendees"] == ["alice@example.com", "bob@example.com"]
+
+    def test_no_attendees_key_when_none(self):
+        fake_event = {
+            "summary": "Solo work",
+            "start": {"dateTime": "2026-03-31T10:00:00-05:00"},
+            "end": {"dateTime": "2026-03-31T11:00:00-05:00"},
+            "htmlLink": "https://calendar.google.com/event?eid=solo",
+        }
+        service = MagicMock()
+        service.events().insert().execute.return_value = fake_event
+
+        with patch("integrations.gcal.token_store.get_valid", return_value=_mock_token()):
+            with patch("integrations.gcal.build", return_value=service):
+                result = gcal.create_event(
+                    title="Solo work",
+                    start="2026-03-31T10:00:00-05:00",
+                    end="2026-03-31T11:00:00-05:00",
+                )
+
+        call_body = service.events().insert.call_args[1]["body"]
+        assert "attendees" not in call_body
+        assert result["attendees"] == []
+
     def test_raises_when_token_missing(self):
         with patch("integrations.gcal.token_store.get_valid",
                    side_effect=RuntimeError("No google token found")):

@@ -143,6 +143,11 @@ TOOLS = [
                     "type": "string",
                     "description": "Optional event location.",
                 },
+                "attendees": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "Optional list of email addresses to invite as guests.",
+                },
             },
             "required": ["title", "start", "end"],
         },
