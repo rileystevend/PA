@@ -20,10 +20,18 @@ TOOLS = [
     },
     {
         "name": "get_calendar_events",
-        "description": "Fetch today's calendar events from Google Calendar.",
+        "description": (
+            "Fetch calendar events from Google Calendar. "
+            "Default: today only (days=1). Use days=7 for the week ahead, days=14 for two weeks, days=30 for a month, etc. Max 90 days."
+        ),
         "input_schema": {
             "type": "object",
-            "properties": {},
+            "properties": {
+                "days": {
+                    "type": "integer",
+                    "description": "Number of days to look ahead. 1 = today only (default), 7 = this week, 30 = this month. Max 90.",
+                }
+            },
             "required": [],
         },
     },

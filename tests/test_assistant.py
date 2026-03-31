@@ -41,9 +41,16 @@ class TestDispatchTool:
 
     def test_get_calendar_events(self):
         gcal_events = [{"title": "Standup"}]
-        with patch("agent.assistant.gcal.get_todays_events", return_value=gcal_events):
+        with patch("agent.assistant.gcal.get_events", return_value=gcal_events):
             result = _dispatch_tool("get_calendar_events", {})
         assert len(result) == 1
+
+    def test_get_calendar_events_with_days(self):
+        gcal_events = [{"title": "Standup"}, {"title": "Friday Lunch"}]
+        with patch("agent.assistant.gcal.get_events", return_value=gcal_events) as mock_fn:
+            result = _dispatch_tool("get_calendar_events", {"days": 7})
+        mock_fn.assert_called_once_with(days=7)
+        assert len(result) == 2
 
     def test_get_news(self):
         headlines = [{"title": "Breaking", "source": "bloomberg"}]
