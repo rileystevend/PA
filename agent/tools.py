@@ -29,6 +29,8 @@ TOOLS = [
             "properties": {
                 "days": {
                     "type": "integer",
+                    "minimum": 1,
+                    "maximum": 90,
                     "description": "Number of days to look ahead. 1 = today only (default), 7 = this week, 30 = this month. Max 90.",
                 }
             },
