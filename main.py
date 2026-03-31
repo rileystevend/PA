@@ -22,7 +22,7 @@ from dotenv import load_dotenv
 from fastapi import FastAPI, Request
 from fastapi.responses import FileResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 load_dotenv()
 
@@ -36,7 +36,7 @@ app.include_router(google_router)
 STATIC_DIR = Path(__file__).parent / "static"
 ACCESS_TOKEN = os.environ.get("ACCESS_TOKEN", "")
 
-_UNPROTECTED = {"/health", "/favicon.ico"}
+_UNPROTECTED = {"/health", "/health/ingest", "/favicon.ico"}
 _STATIC_EXTS = {".png", ".svg", ".json", ".ico", ".webmanifest"}
 
 
@@ -122,3 +122,49 @@ def manifest():
 @app.get("/health")
 def health():
     return {"status": "ok"}
+
+
+class HealthIngestRequest(BaseModel):
+    """
+    Accepts body composition data POSTed from an iOS Shortcut.
+    Fields match what Apple Health HealthKit provides via Shortcuts.
+    All fields optional — send whatever you have, but at least one field required.
+    """
+    weight_lbs: float | None = Field(None, ge=50, le=500)
+    weight_kg: float | None = Field(None, ge=20, le=230)
+    body_fat_pct: float | None = Field(None, ge=1, le=70)
+    lean_mass_lbs: float | None = Field(None, ge=30, le=400)
+    lean_mass_kg: float | None = Field(None, ge=15, le=180)
+
+
+@app.post("/health/ingest")
+def health_ingest(req: HealthIngestRequest):
+    """
+    Receive body composition data from an iOS Shortcut and cache it.
+    This replaces the manual Apple Health XML export flow.
+    The cached data is read by apple_health.get_summary().
+    """
+    from integrations import cache as health_cache
+
+    data = {"source": "apple_health_shortcut"}
+
+    # Normalize to lbs
+    if req.weight_lbs is not None:
+        data["weight_lbs"] = round(req.weight_lbs, 1)
+    elif req.weight_kg is not None:
+        data["weight_lbs"] = round(req.weight_kg * 2.20462, 1)
+
+    if req.body_fat_pct is not None:
+        data["body_fat_pct"] = round(req.body_fat_pct, 1)
+
+    if req.lean_mass_lbs is not None:
+        data["lean_mass_lbs"] = round(req.lean_mass_lbs, 1)
+    elif req.lean_mass_kg is not None:
+        data["lean_mass_lbs"] = round(req.lean_mass_kg * 2.20462, 1)
+
+    # Reject empty payloads — don't overwrite good cached data with nothing
+    if len(data) == 1:  # only "source" key
+        return {"status": "error", "message": "At least one measurement field is required"}
+
+    health_cache.save("health_bodycomp", data)
+    return {"status": "ok", "saved": data}

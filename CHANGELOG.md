@@ -2,6 +2,17 @@
 
 All notable changes to PA (Personal Assistant) will be documented in this file.
 
+## [0.2.3.0] - 2026-03-31
+
+### Added
+- `/health/ingest` endpoint for iOS Shortcuts to push body composition data (weight, body fat, lean mass) directly to PA, replacing the manual Apple Health XML export
+- Automatic retry with exponential backoff (1s, 2s, 4s) when the Anthropic API returns 429 or 529 errors. Chat no longer crashes on "Overloaded" responses.
+- 9 new tests: 7 for the health ingest endpoint, 2 for retry logic (success on retry + max retries exhausted)
+
+### Changed
+- Apple Health cache TTL extended from 24h to 48h (data now pushed daily by iOS Shortcut)
+- Apple Health error message updated to reference the new `/health/ingest` endpoint
+
 ## [0.2.2.0] - 2026-03-30 — Health Data Integration
 
 ### Added

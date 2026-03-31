@@ -171,6 +171,7 @@ Claude API (with tool definitions)
 - `GET /auth/google/callback` — handles Google redirect, saves token
 - `GET /auth/microsoft` — starts Microsoft OAuth flow
 - `GET /auth/microsoft/callback` — handles Microsoft redirect, saves token
+- `POST /health/ingest` — accepts body comp data from iOS Shortcuts (weight, body fat, lean mass); no auth required (localhost-only)
 - `GET /` — serves the chat UI (`static/index.html`)
 
 **Security:** Server binds to `127.0.0.1` only (`--host 127.0.0.1`). Never bind to `0.0.0.0` — the chat endpoint has access to your email and calendar.
