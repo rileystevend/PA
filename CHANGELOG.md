@@ -2,6 +2,11 @@
 
 All notable changes to PA (Personal Assistant) will be documented in this file.
 
+## [0.2.3.1] - 2026-03-31
+
+### Changed
+- You can now ask about your calendar days or weeks ahead ("What's on my calendar next week?", "Any events in April?"). Previously only showed today. Supports 1-90 days via the `days` parameter.
+
 ## [0.2.3.0] - 2026-03-31
 
 ### Added
