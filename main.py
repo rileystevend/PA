@@ -22,7 +22,7 @@ from dotenv import load_dotenv
 from fastapi import FastAPI, Request
 from fastapi.responses import FileResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 load_dotenv()
 
@@ -128,13 +128,13 @@ class HealthIngestRequest(BaseModel):
     """
     Accepts body composition data POSTed from an iOS Shortcut.
     Fields match what Apple Health HealthKit provides via Shortcuts.
-    All fields optional — send whatever you have.
+    All fields optional — send whatever you have, but at least one field required.
     """
-    weight_lbs: float | None = None
-    weight_kg: float | None = None
-    body_fat_pct: float | None = None
-    lean_mass_lbs: float | None = None
-    lean_mass_kg: float | None = None
+    weight_lbs: float | None = Field(None, ge=50, le=500)
+    weight_kg: float | None = Field(None, ge=20, le=230)
+    body_fat_pct: float | None = Field(None, ge=1, le=70)
+    lean_mass_lbs: float | None = Field(None, ge=30, le=400)
+    lean_mass_kg: float | None = Field(None, ge=15, le=180)
 
 
 @app.post("/health/ingest")
@@ -161,6 +161,10 @@ def health_ingest(req: HealthIngestRequest):
         data["lean_mass_lbs"] = round(req.lean_mass_lbs, 1)
     elif req.lean_mass_kg is not None:
         data["lean_mass_lbs"] = round(req.lean_mass_kg * 2.20462, 1)
+
+    # Reject empty payloads — don't overwrite good cached data with nothing
+    if len(data) == 1:  # only "source" key
+        return {"status": "error", "message": "At least one measurement field is required"}
 
     health_cache.save("health_bodycomp", data)
     return {"status": "ok", "saved": data}

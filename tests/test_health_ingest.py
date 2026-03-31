@@ -37,11 +37,17 @@ class TestHealthIngest:
         saved = resp.json()["saved"]
         assert saved["lean_mass_lbs"] == round(68.0 * 2.20462, 1)
 
-    def test_empty_body_returns_ok(self):
-        with patch("integrations.cache.save"):
+    def test_empty_body_rejected(self):
+        """Empty POST doesn't overwrite good cached data."""
+        with patch("integrations.cache.save") as mock_save:
             resp = client.post("/health/ingest", json={})
-        assert resp.status_code == 200
-        assert resp.json()["status"] == "ok"
+        assert resp.json()["status"] == "error"
+        mock_save.assert_not_called()
+
+    def test_out_of_range_rejected(self):
+        """Values outside sanity ranges are rejected by Pydantic."""
+        resp = client.post("/health/ingest", json={"weight_lbs": -10})
+        assert resp.status_code == 422
 
     def test_lbs_preferred_over_kg(self):
         """When both weight_lbs and weight_kg are provided, lbs wins."""
