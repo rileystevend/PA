@@ -229,3 +229,78 @@ class TestStreamConversationalLoopCeiling:
         payload = json.loads(error_chunks[0].replace("data: ", "").strip())
         assert "maximum iterations" in payload["error"]
         assert chunks[-1].strip() == "data: [DONE]"
+
+
+class TestStreamConversationalRetry:
+    """Tests for retry on 429/529 Anthropic API errors."""
+
+    def _collect(self, coro):
+        async def _run():
+            chunks = []
+            async for chunk in coro:
+                chunks.append(chunk)
+            return chunks
+        return asyncio.run(_run())
+
+    def test_retries_on_529_overloaded(self):
+        """A 529 overloaded error retries and succeeds on the second attempt."""
+        from unittest.mock import AsyncMock, MagicMock
+        from anthropic import APIStatusError
+        from agent.assistant import _stream_conversational
+
+        fake_final_msg = MagicMock()
+        fake_final_msg.stop_reason = "end_turn"
+        fake_final_msg.content = [MagicMock(text="Hello", type="text")]
+
+        async def text_stream():
+            yield "Hello"
+
+        call_count = [0]
+
+        def make_stream(**kw):
+            call_count[0] += 1
+            if call_count[0] == 1:
+                raise APIStatusError(
+                    message="Overloaded",
+                    response=MagicMock(status_code=529, headers={}),
+                    body={"error": {"type": "overloaded_error", "message": "Overloaded"}},
+                )
+            stream = AsyncMock()
+            stream.__aenter__ = AsyncMock(return_value=stream)
+            stream.__aexit__ = AsyncMock(return_value=False)
+            stream.text_stream = text_stream()
+            stream.get_final_message = AsyncMock(return_value=fake_final_msg)
+            return stream
+
+        with patch("agent.assistant.client.messages.stream", side_effect=make_stream), \
+             patch("agent.assistant.asyncio.sleep", new_callable=AsyncMock):
+            chunks = self._collect(_stream_conversational("hi"))
+
+        text_chunks = [c for c in chunks if '"text"' in c and "Retrying" not in c]
+        assert any("Hello" in c for c in text_chunks)
+        assert call_count[0] == 2  # first failed, second succeeded
+
+    def test_gives_up_after_max_retries(self):
+        """After MAX_RETRIES 529 errors, the error propagates to stream_response."""
+        from unittest.mock import AsyncMock
+        from anthropic import APIStatusError
+        from agent.assistant import stream_response
+
+        def always_fail(**kw):
+            raise APIStatusError(
+                message="Overloaded",
+                response=MagicMock(status_code=529, headers={}),
+                body={"error": {"type": "overloaded_error", "message": "Overloaded"}},
+            )
+
+        with patch("agent.assistant.client.messages.stream", side_effect=always_fail), \
+             patch("agent.assistant.asyncio.sleep", new_callable=AsyncMock):
+            chunks = []
+            async def collect():
+                async for c in stream_response("hi"):
+                    chunks.append(c)
+            asyncio.run(collect())
+
+        # Should get an error SSE event (from the outer try/except in stream_response)
+        assert any('"error"' in c for c in chunks)
+        assert any("[DONE]" in c for c in chunks)
