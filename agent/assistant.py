@@ -18,6 +18,7 @@ from collections.abc import AsyncGenerator
 from typing import Any
 
 import anthropic
+from anthropic import APIStatusError
 
 from agent.tools import TOOLS
 from integrations import apple_health, daft, garmin, gcal, gmail, news, weather
@@ -26,6 +27,9 @@ logger = logging.getLogger(__name__)
 
 client = anthropic.AsyncAnthropic()
 MODEL = "claude-sonnet-4-6"
+
+MAX_RETRIES = 3
+RETRY_DELAYS = [1, 2, 4]  # seconds — exponential backoff
 
 BRIEFING_KEYWORDS = {"morning briefing", "morning brief", "good morning", "briefing"}
 
@@ -139,15 +143,27 @@ async def _stream_conversational(message: str, history: list = None) -> AsyncGen
             yield "data: [DONE]\n\n"
             return
 
-        async with client.messages.stream(
-            model=MODEL,
-            max_tokens=4096,
-            tools=TOOLS,
-            messages=messages,
-        ) as stream:
-            async for text in stream.text_stream:
-                yield f"data: {json.dumps({'text': text})}\n\n"
-            response = await stream.get_final_message()
+        for attempt in range(MAX_RETRIES):
+            try:
+                async with client.messages.stream(
+                    model=MODEL,
+                    max_tokens=4096,
+                    tools=TOOLS,
+                    messages=messages,
+                ) as stream:
+                    async for text in stream.text_stream:
+                        yield f"data: {json.dumps({'text': text})}\n\n"
+                    response = await stream.get_final_message()
+                break  # success
+            except APIStatusError as e:
+                if e.status_code in (429, 529) and attempt < MAX_RETRIES - 1:
+                    delay = RETRY_DELAYS[attempt]
+                    logger.warning("Anthropic API %s (attempt %d/%d), retrying in %ds",
+                                   e.status_code, attempt + 1, MAX_RETRIES, delay)
+                    yield f"data: {json.dumps({'text': f'[Retrying in {delay}s...]'})}\n\n"
+                    await asyncio.sleep(delay)
+                else:
+                    raise
 
         if response.stop_reason == "tool_use":
             tool_calls = [b for b in response.content if b.type == "tool_use"]
@@ -183,13 +199,24 @@ async def _stream_conversational(message: str, history: list = None) -> AsyncGen
 
 async def _stream_claude(prompt: str) -> AsyncGenerator[str, None]:
     """Stream a single Claude message and yield SSE chunks."""
-    async with client.messages.stream(
-        model=MODEL,
-        max_tokens=4096,
-        messages=[{"role": "user", "content": prompt}],
-    ) as stream:
-        async for text in stream.text_stream:
-            yield f"data: {json.dumps({'text': text})}\n\n"
+    for attempt in range(MAX_RETRIES):
+        try:
+            async with client.messages.stream(
+                model=MODEL,
+                max_tokens=4096,
+                messages=[{"role": "user", "content": prompt}],
+            ) as stream:
+                async for text in stream.text_stream:
+                    yield f"data: {json.dumps({'text': text})}\n\n"
+            break
+        except APIStatusError as e:
+            if e.status_code in (429, 529) and attempt < MAX_RETRIES - 1:
+                delay = RETRY_DELAYS[attempt]
+                logger.warning("Anthropic API %s (attempt %d/%d), retrying in %ds",
+                               e.status_code, attempt + 1, MAX_RETRIES, delay)
+                await asyncio.sleep(delay)
+            else:
+                raise
     yield "data: [DONE]\n\n"
 
 
