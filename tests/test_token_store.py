@@ -41,6 +41,12 @@ class TestSave:
         token_store.save("google", {"token": "new"})
         assert token_store.load("google")["token"] == "new"
 
+    def test_sets_restrictive_permissions(self, tmp_path):
+        token_store.save("google", {"token": "secret"})
+        path = tmp_path / "google.json"
+        mode = path.stat().st_mode & 0o777
+        assert mode == 0o600, f"Expected 0600, got {oct(mode)}"
+
 
 class TestIsExpired:
     def test_expired_iso_string(self):

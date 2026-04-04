@@ -22,7 +22,7 @@ from dotenv import load_dotenv
 from fastapi import FastAPI, Request
 from fastapi.responses import FileResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 load_dotenv()
 
@@ -83,9 +83,21 @@ def index():
     return FileResponse(STATIC_DIR / "index.html")
 
 
+MAX_HISTORY_TURNS = 50
+MAX_HISTORY_CHARS = 200_000
+
+
 class ChatRequest(BaseModel):
     message: str
     history: list = []
+
+    @model_validator(mode="after")
+    def cap_history(self):
+        self.history = self.history[:MAX_HISTORY_TURNS]
+        total = sum(len(str(m.get("content", ""))) for m in self.history if isinstance(m, dict))
+        if total > MAX_HISTORY_CHARS:
+            self.history = self.history[-20:]
+        return self
 
 
 @app.post("/chat")

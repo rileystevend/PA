@@ -26,6 +26,7 @@ def save(provider: str, token: dict) -> None:
     TOKEN_DIR.mkdir(parents=True, exist_ok=True)
     path = TOKEN_DIR / f"{provider}.json"
     path.write_text(json.dumps(token, indent=2))
+    path.chmod(0o600)
 
 
 def is_expired(token: dict) -> bool:
