@@ -7,6 +7,7 @@ Routes:
 """
 
 import os
+from datetime import datetime, timedelta, timezone
 from urllib.parse import urlencode
 
 import httpx
@@ -65,7 +66,7 @@ async def google_callback(code: str):
             "token_uri": GOOGLE_TOKEN_URL,
             "client_id": os.environ["GOOGLE_CLIENT_ID"],
             "client_secret": os.environ["GOOGLE_CLIENT_SECRET"],
-            "expiry": None,  # will be set on first refresh
+            "expiry": (datetime.now(timezone.utc) + timedelta(seconds=data.get("expires_in", 3600))).isoformat(),
         },
     )
     return RedirectResponse("/?connected=google")
