@@ -11,7 +11,7 @@ First-time auth:
 
 import logging
 import os
-from datetime import date
+from datetime import date, datetime, timezone
 
 from integrations import cache
 
@@ -19,6 +19,45 @@ logger = logging.getLogger(__name__)
 
 CACHE_NAME = "health_garmin"
 CACHE_TTL_MINUTES = 30
+LOGIN_COOLDOWN_MINUTES = 15
+
+# Module-level: reuse client across requests, backoff on login failure
+_client = None
+_login_failed_at: datetime | None = None
+
+
+def _get_client():
+    """Return a cached Garmin client, or login once. Respects cooldown on failure."""
+    global _client, _login_failed_at
+
+    if _client is not None:
+        return _client
+
+    # Don't retry login if we failed recently (prevents 429 death spiral)
+    if _login_failed_at is not None:
+        elapsed = (datetime.now(timezone.utc) - _login_failed_at).total_seconds()
+        if elapsed < LOGIN_COOLDOWN_MINUTES * 60:
+            remaining = int(LOGIN_COOLDOWN_MINUTES - elapsed / 60)
+            raise RuntimeError(f"Garmin login on cooldown ({remaining}m remaining). Last attempt was rate-limited.")
+
+    try:
+        from garminconnect import Garmin
+    except ImportError:
+        raise RuntimeError("garminconnect not installed. Run: pip install garminconnect")
+
+    email = os.environ.get("GARMIN_EMAIL", "")
+    password = os.environ.get("GARMIN_PASSWORD", "")
+
+    try:
+        client = Garmin(email=email or None, password=password or None)
+        client.login()
+        _client = client
+        _login_failed_at = None
+        return _client
+    except Exception as e:
+        _login_failed_at = datetime.now(timezone.utc)
+        logger.warning("Garmin auth failed (cooldown %dm): %s", LOGIN_COOLDOWN_MINUTES, e)
+        raise
 
 
 def get_summary() -> dict:
@@ -36,18 +75,9 @@ def get_summary() -> dict:
         return cached
 
     try:
-        from garminconnect import Garmin
-    except ImportError:
-        return {"source": "garmin", "error": "garminconnect not installed. Run: pip install garminconnect"}
-
-    email = os.environ.get("GARMIN_EMAIL", "")
-
-    try:
-        client = Garmin(email=email or None)
-        client.login()
+        client = _get_client()
     except Exception as e:
-        logger.warning("Garmin auth failed: %s", e)
-        return {"source": "garmin", "error": f"Garmin unavailable — {e}. Re-run garmin login if session expired."}
+        return {"source": "garmin", "error": str(e)}
 
     try:
         result = _fetch_health_data(client)
