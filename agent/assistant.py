@@ -225,6 +225,7 @@ async def _stream_claude(prompt: str) -> AsyncGenerator[str, None]:
 # ---------------------------------------------------------------------------
 
 def _dispatch_tool(name: str, inputs: dict) -> Any:
+    logger.debug("tool dispatch: %s %s", name, inputs)
     source = inputs.get("source", "all")
 
     if name == "get_emails":

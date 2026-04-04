@@ -36,8 +36,8 @@ app.include_router(google_router)
 STATIC_DIR = Path(__file__).parent / "static"
 ACCESS_TOKEN = os.environ.get("ACCESS_TOKEN", "")
 
-_UNPROTECTED = {"/health", "/health/ingest", "/favicon.ico"}
-_STATIC_EXTS = {".png", ".svg", ".json", ".ico", ".webmanifest"}
+_UNPROTECTED = {"/health", "/health/ingest", "/favicon.ico", "/manifest.json"}
+_STATIC_EXTS = {".png", ".svg", ".ico", ".webmanifest"}
 
 
 @app.middleware("http")
