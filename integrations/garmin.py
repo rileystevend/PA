@@ -20,6 +20,7 @@ logger = logging.getLogger(__name__)
 CACHE_NAME = "health_garmin"
 CACHE_TTL_MINUTES = 30
 LOGIN_COOLDOWN_MINUTES = 15
+GARTH_TOKEN_DIR = os.path.expanduser("~/.garth")
 
 # Module-level: reuse client across requests, backoff on login failure
 _client = None
@@ -27,7 +28,12 @@ _login_failed_at: datetime | None = None
 
 
 def _get_client():
-    """Return a cached Garmin client, or login once. Respects cooldown on failure."""
+    """Return a cached Garmin client, or login once. Respects cooldown on failure.
+
+    Auth strategy:
+    1. Try saved garth tokens (~/.garth/) — no SSO call needed
+    2. Fall back to SSO credentials if no tokens exist
+    """
     global _client, _login_failed_at
 
     if _client is not None:
@@ -45,14 +51,26 @@ def _get_client():
     except ImportError:
         raise RuntimeError("garminconnect not installed. Run: pip install garminconnect")
 
-    email = os.environ.get("GARMIN_EMAIL", "")
-    password = os.environ.get("GARMIN_PASSWORD", "")
-
     try:
+        # Prefer tokenstore (avoids SSO 429 blocks)
+        if os.path.isdir(GARTH_TOKEN_DIR):
+            client = Garmin()
+            client.login(tokenstore=GARTH_TOKEN_DIR)
+            _client = client
+            _login_failed_at = None
+            logger.info("Garmin auth via saved tokens")
+            return _client
+
+        # Fall back to SSO credentials
+        email = os.environ.get("GARMIN_EMAIL", "")
+        password = os.environ.get("GARMIN_PASSWORD", "")
         client = Garmin(email=email or None, password=password or None)
         client.login()
+        # Save tokens for future use
+        client.garth.dump(GARTH_TOKEN_DIR)
         _client = client
         _login_failed_at = None
+        logger.info("Garmin auth via SSO, tokens saved")
         return _client
     except Exception as e:
         _login_failed_at = datetime.now(timezone.utc)
