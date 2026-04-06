@@ -20,10 +20,22 @@ TOOLS = [
     },
     {
         "name": "get_calendar_events",
-        "description": "Fetch today's calendar events from Google Calendar.",
+        "description": (
+            "Fetch calendar events from Google Calendar. "
+            "Defaults to today. Use start_date/end_date to look at future or past dates."
+        ),
         "input_schema": {
             "type": "object",
-            "properties": {},
+            "properties": {
+                "start_date": {
+                    "type": "string",
+                    "description": "Start date in ISO format (e.g. '2026-04-07'). Defaults to today.",
+                },
+                "end_date": {
+                    "type": "string",
+                    "description": "End date in ISO format (inclusive). Defaults to start_date.",
+                },
+            },
             "required": [],
         },
     },

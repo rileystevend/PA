@@ -65,6 +65,58 @@ class TestGetTodaysEvents:
         assert isinstance(results, list)
 
 
+class TestGetEvents:
+    def test_date_range(self):
+        events = [
+            {
+                "summary": "Conference",
+                "start": {"dateTime": "2026-04-10T09:00:00-05:00"},
+                "end": {"dateTime": "2026-04-10T17:00:00-05:00"},
+                "location": "",
+                "description": "",
+            }
+        ]
+        service = _mock_service(events)
+
+        with patch("integrations.gcal.token_store.get_valid", return_value=_mock_token()):
+            with patch("integrations.gcal.build", return_value=service):
+                results = gcal.get_events(
+                    start_date="2026-04-10",
+                    end_date="2026-04-12",
+                )
+
+        assert len(results) == 1
+        assert results[0]["title"] == "Conference"
+        # Verify the API was called with the right time range
+        call_kwargs = service.events().list.call_args[1]
+        assert "2026-04-10" in call_kwargs["timeMin"]
+        assert "2026-04-12" in call_kwargs["timeMax"]
+
+    def test_single_date(self):
+        service = _mock_service(events=[])
+
+        with patch("integrations.gcal.token_store.get_valid", return_value=_mock_token()):
+            with patch("integrations.gcal.build", return_value=service):
+                results = gcal.get_events(start_date="2026-04-15")
+
+        assert results == []
+        call_kwargs = service.events().list.call_args[1]
+        assert "2026-04-15" in call_kwargs["timeMin"]
+        assert "2026-04-15" in call_kwargs["timeMax"]
+
+    def test_defaults_to_today(self):
+        service = _mock_service(events=[])
+
+        with patch("integrations.gcal.token_store.get_valid", return_value=_mock_token()):
+            with patch("integrations.gcal.build", return_value=service):
+                results = gcal.get_events()
+
+        assert results == []
+        today = datetime.now().strftime("%Y-%m-%d")
+        call_kwargs = service.events().list.call_args[1]
+        assert today in call_kwargs["timeMin"]
+
+
 class TestCreateEvent:
     def test_creates_event_happy_path(self):
         fake_event = {

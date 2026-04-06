@@ -17,21 +17,50 @@ logger = logging.getLogger(__name__)
 
 
 def get_todays_events() -> list[dict]:
+    """Return all calendar events for today."""
+    return get_events()
+
+
+def get_events(
+    start_date: str | None = None,
+    end_date: str | None = None,
+) -> list[dict]:
     """
-    Return all calendar events for today.
-    Each item: {title, start, end, calendar, location, description}
+    Return calendar events for a date range.
+
+    Args:
+        start_date: ISO date string (e.g. "2026-04-07"). Defaults to today.
+        end_date: ISO date string (inclusive). Defaults to start_date (single day).
+
+    Returns:
+        List of {title, start, end, calendar, location, description}.
     """
     token = token_store.get_valid("google")
     creds = _credentials_from_token(token)
     service = build("calendar", "v3", credentials=creds)
 
-    # Today's bounds in local time, converted to UTC for the API
     now = datetime.now().astimezone()
-    start_of_day = now.replace(hour=0, minute=0, second=0, microsecond=0)
-    end_of_day = now.replace(hour=23, minute=59, second=59, microsecond=0)
 
-    time_min = start_of_day.isoformat()
-    time_max = end_of_day.isoformat()
+    if start_date:
+        start_of_range = datetime.fromisoformat(start_date).replace(
+            hour=0, minute=0, second=0, microsecond=0,
+            tzinfo=now.tzinfo,
+        )
+    else:
+        start_of_range = now.replace(hour=0, minute=0, second=0, microsecond=0)
+
+    if end_date:
+        end_of_range = datetime.fromisoformat(end_date).replace(
+            hour=23, minute=59, second=59, microsecond=0,
+            tzinfo=now.tzinfo,
+        )
+    else:
+        end_of_range = start_of_range.replace(
+            hour=23, minute=59, second=59, microsecond=0
+        )
+
+    time_min = start_of_range.isoformat()
+    time_max = end_of_range.isoformat()
 
     calendars = service.calendarList().list().execute().get("items", [])
     events = []

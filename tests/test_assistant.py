@@ -41,7 +41,7 @@ class TestDispatchTool:
 
     def test_get_calendar_events(self):
         gcal_events = [{"title": "Standup"}]
-        with patch("agent.assistant.gcal.get_todays_events", return_value=gcal_events):
+        with patch("agent.assistant.gcal.get_events", return_value=gcal_events):
             result = _dispatch_tool("get_calendar_events", {})
         assert len(result) == 1
 
