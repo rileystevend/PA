@@ -99,6 +99,7 @@
       flex: 1;
       display: flex;
       overflow: hidden;
+      position: relative; /* anchor for sidebar absolute positioning on mobile */
     }
 
     /* ── Sidebar ─────────────────────────────────────────── */
@@ -135,7 +136,7 @@
     @media (max-width: 600px) {
       #sidebar {
         position: absolute;
-        top: 57px; /* header height */
+        top: 0; /* relative to #main-layout, which is below header */
         left: 0;
         bottom: 0;
         z-index: 50;
@@ -227,6 +228,7 @@
     #messages {
       flex: 1;
       overflow-y: auto;
+      overflow-x: hidden;
       padding: 24px;
       display: flex;
       flex-direction: column;
@@ -238,6 +240,8 @@
       width: 100%;
       margin: 0 auto;
       line-height: 1.6;
+      overflow-wrap: break-word;
+      word-break: break-word;
     }
 
     .message.user {
@@ -495,7 +499,7 @@
     @media (max-width: 600px) {
       header { padding: 0 16px; height: 50px; }
       header .status { display: none; }
-      #sidebar { top: 50px; }
+      #sidebar { top: 0; }
       #messages { padding: 16px; gap: 16px; }
       #input-area { padding: 10px 12px; }
       .empty-state h2 { font-size: 34px; }
